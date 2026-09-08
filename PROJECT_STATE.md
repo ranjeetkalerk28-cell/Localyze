@@ -11,6 +11,7 @@
 
 ```text
 localyze review 1/
+├── .gitignore
 ├── PROJECT_STATE.md
 ├── atlas-credentials.env
 ├── backend.zip
@@ -62,6 +63,7 @@ localyze review 1/
 │       └── utils/
 │           └── generateToken.js
 └── frontend/
+    ├── .gitignore
     ├── index.html
     ├── package.json
     ├── package-lock.json
@@ -225,7 +227,7 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 - The business profile's stats row (followers/collaborations/connections counts) doesn't live-refresh after a connect/disconnect action on that same page — only the action button's own state updates immediately.
 - No automated test suite is currently present.
 - The backend uses broad CORS configuration and should be restricted for production deployment.
-- Root workspace is not a Git repository, so worktree status and commit history are unavailable from the project root.
+- Git repository is active on branch `main` with remote `origin` configured as `https://github.com/ranjeetkalerk28-cell/localyze-review-1.git`; the latest verified checkpoint is commit `cd482cc` (`version 1`).
 
 ## Next Steps
 
@@ -238,6 +240,7 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 
 ## Change Log
 
+- [2026-09-08] Reconciled project state with the GitHub `main` checkpoint (`cd482cc`, `version 1`); confirmed clean worktree and deployment-ignore rules — via GitHub Copilot.
 - [2026-09-08] Redesigned the business profile page (self and others) into one unified `BusinessProfilePage`: added follower/connection/collaboration counts and a followers/connections lookup to `GET /api/businesses/:id` and two new sub-routes (`businessController.js`: `getBusinessFollowers`, `getBusinessConnections`, `getBusinessPosts` at `/api/businesses/:id/{followers,connections,posts}`), plus a `DELETE /api/connections/:businessId` disconnect endpoint (`connectionController.disconnectBusiness`). Frontend: merged the old business branch of `ProfilePage` and all of `BusinessProfileView` into `BusinessProfilePage`, matching a user-provided prototype — a stats row (Followers/Collaborations/Connections, the first and third clickable to swap in an in-page list with no navigation), a tabbed post grid (Collaborations/Promotions/Offers — "Offers" chosen over the prototype's "Ads" label to match the real `offer` postType, per the user), `Edit Profile` for the owner (placeholder, no backend yet, per the user), and `ConnectButton` extended with a disconnect flow (`window.confirm` before calling the new DELETE endpoint) or `FollowButton` for a consumer viewer (previously missing entirely on this page). Removed the profile page's "Back" button per the user's explicit complaint that it fought the always-visible sidebar. Found and fixed a bug during verification: navigating from one business's profile to another's (e.g. via the connections list) preserved the previous business's view/tab state because the component wasn't remounting — fixed with a `key={businessId}`. Verified end-to-end via curl (counts, followers/connections lists, postType filtering, `businesses_only` visibility restricted to owner/connected viewers, disconnect) and in the browser (self profile, connections list navigation, disconnect-with-confirmation via a stubbed `window.confirm`, and the previously-missing consumer Follow button). Left three test accounts (`prof-a@example.com`, `prof-b@example.com`, `prof-consumer@example.com`) in the Atlas database from manual verification — via Claude Sonnet 5.
 - [2026-09-08] Added business-to-business Connections: new `Connection` model/controller/routes (`backend/src/models/Connection.js`, `connectionController.js`, `connectionRoutes.js`), a new public business-profile endpoint (`businessController.js`/`businessRoutes.js` at `/api/businesses/:id`), a connections-based homepage feed for businesses with same-industry backfill (`postController.getConnectionsFeed`, `GET /api/posts/feed`), and an auto-connect hook on collaboration acceptance (`collaborationController.respondToRequest`). Frontend: removed the static `BusinessDashboard` entirely — business Home is now a real feed (mirroring the consumer feed) with `PostCard` business names made clickable to open a new `BusinessProfileView` (Connect / Follow / send-collaboration-request, depending on viewer role) that renders inline in the main content area — not a full-page takeover, so the sidebar stays visible at all times, including on the Create page (its old "Dashboard" back-link was removed). Notifications now branches by role: businesses see/accept/reject connection requests there instead of consumer offer notifications. Added a new business-only "Collaborations" sidebar page (received/sent lists, accept/reject) — the first frontend surface for the previously-unwired collaboration backend. Settings is now a small popover next to the sidebar button (reusing the "More" menu's dropdown style) containing Log out, rather than a page. Found and fixed two bugs during verification: `ConnectButton` initially showed "Connect" even when already connected because its status loaded asynchronously after mount (fixed with a `key={connectionStatus}` remount); sidebar nav clicks didn't clear the business-profile overlay, leaving users stuck on it (fixed by routing all nav clicks through a `navigateTo` helper that clears it). Verified end-to-end via curl (industry backfill with zero connections, request → accept → connections-branch feed now includes `businesses_only` posts, collaboration accept → auto-created connection, idempotency on repeat) and in the browser (profile view with sidebar visible, Connect, Notifications accept, Collaborations page, Create with sidebar, Settings popover) — via Claude Sonnet 5.
 - [2026-09-08] Flattened the redundant `backend/backend/` nesting — all backend files now live directly under `backend/` (was `backend/backend/`); no import paths changed since they were already relative. Stopped two orphaned `nodemon` watcher processes left running from an earlier session that were holding a lock on the old directory — via Claude Sonnet 5.
@@ -253,4 +256,4 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 
 ## Last Updated
 
-2026-09-08 (business profile redesign — stats, followers/connections lists, tabbed posts, disconnect)
+2026-09-08 (GitHub checkpoint reconciliation; latest verified commit `cd482cc`)
