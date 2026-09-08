@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+.env
+*.log
+
+# Local credentials and editor state
+atlas-credentials.env
+credentials.txt
+.claude/*.lock
+.claude/settings.local.json
