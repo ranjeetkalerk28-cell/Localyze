@@ -13,6 +13,7 @@ const discoverPosts = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
 
     const query = {
+      status: 'active',
       visibility: { $in: ['consumers_and_businesses', null] },
       $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
       ...(interests && interests.length > 0 ? { tags: { $in: interests } } : {}),
@@ -29,6 +30,7 @@ const discoverPosts = async (req, res) => {
       const excludeIds = posts.map((p) => p._id);
       const fillerPosts = await Post.find({
         _id: { $nin: excludeIds },
+        status: 'active',
         visibility: { $in: ['consumers_and_businesses', null] },
         $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
       })

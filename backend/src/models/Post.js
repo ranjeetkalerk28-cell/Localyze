@@ -11,8 +11,10 @@ const postSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     content: { type: String, required: true },
     imageUrl: { type: String, default: '' },
+    imagePublicId: { type: String, default: '' }, // Cloudinary public ID, needed to destroy the asset on delete
     tags: [{ type: String }], // useful for discover matching against user interests
-    expiresAt: { type: Date, default: null },
+    expiresAt: { type: Date, default: null }, // also serves as an offer's "valid until"
+    validFrom: { type: Date, default: null }, // offer-only: when the offer becomes valid
     collaborationRequirements: { type: String, default: '' },
     visibility: {
       type: String,
@@ -20,8 +22,17 @@ const postSchema = new mongoose.Schema(
       default: 'consumers_and_businesses',
     },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    status: { type: String, enum: ['active', 'deleted'], default: 'active' },
+    deletedAt: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+// Derived, not stored — so it can never drift out of sync with expiresAt.
+postSchema.virtual('offerStatus').get(function () {
+  if (this.postType !== 'offer') return undefined;
+  if (this.expiresAt && this.expiresAt.getTime() <= Date.now()) return 'expired';
+  return 'active';
+});
 
 module.exports = mongoose.model('Post', postSchema);

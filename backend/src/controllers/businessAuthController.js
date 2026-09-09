@@ -51,4 +51,19 @@ const getMyProfile = async (req, res) => {
   res.json(req.business);
 };
 
-module.exports = { registerBusiness, loginBusiness, getMyProfile };
+// @desc    Update the logged-in business's profile
+// @route   PUT /api/business/auth/me
+const updateMyProfile = async (req, res) => {
+  try {
+    const allowedFields = ['businessName', 'industry', 'description', 'logoUrl'];
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) req.business[field] = req.body[field];
+    });
+    const updated = await req.business.save();
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { registerBusiness, loginBusiness, getMyProfile, updateMyProfile };

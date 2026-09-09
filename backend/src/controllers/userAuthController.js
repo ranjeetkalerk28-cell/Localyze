@@ -51,4 +51,19 @@ const getMyProfile = async (req, res) => {
   res.json(req.user);
 };
 
-module.exports = { registerUser, loginUser, getMyProfile };
+// @desc    Update the logged-in consumer's profile
+// @route   PUT /api/user/auth/me
+const updateMyProfile = async (req, res) => {
+  try {
+    const allowedFields = ['name', 'bio', 'interests', 'avatarUrl'];
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) req.user[field] = req.body[field];
+    });
+    const updated = await req.user.save();
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { registerUser, loginUser, getMyProfile, updateMyProfile };

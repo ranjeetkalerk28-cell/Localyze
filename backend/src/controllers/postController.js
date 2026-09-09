@@ -3,6 +3,7 @@ const Follow = require('../models/Follow');
 const Notification = require('../models/Notification');
 const Business = require('../models/Business');
 const Connection = require('../models/Connection');
+const cloudinary = require('../config/cloudinary');
 
 // @desc    Create a post (business only)
 // @route   POST /api/posts
@@ -13,8 +14,10 @@ const createPost = async (req, res) => {
       title,
       content,
       imageUrl,
+      imagePublicId,
       tags,
       expiresAt,
+      validFrom,
       collaborationRequirements,
       visibility,
     } = req.body;
@@ -27,14 +30,20 @@ const createPost = async (req, res) => {
       return res.status(400).json({ message: 'Collaboration posts must be visible to businesses only' });
     }
 
+    if (postType === 'offer' && (!validFrom || !expiresAt)) {
+      return res.status(400).json({ message: 'Offers require a valid-from and valid-until date' });
+    }
+
     const post = await Post.create({
       business: req.business._id,
       postType,
       title,
       content,
       imageUrl,
+      imagePublicId: imagePublicId || '',
       tags,
       expiresAt: expiresAt || null,
+      validFrom: validFrom || null,
       collaborationRequirements: collaborationRequirements || '',
       visibility: postType === 'collaboration' ? 'businesses_only' : 'consumers_and_businesses',
     });
@@ -55,7 +64,7 @@ const createPost = async (req, res) => {
 // @route   GET /api/posts/mine
 const getMyPosts = async (req, res) => {
   try {
-    const posts = await Post.find({ business: req.business._id })
+    const posts = await Post.find({ business: req.business._id, status: 'active' })
       .populate('business', 'businessName logoUrl industry')
       .sort({ createdAt: -1 });
     res.json(posts);
@@ -68,7 +77,7 @@ const getMyPosts = async (req, res) => {
 // @route   GET /api/posts/:id
 const getPostById = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id).populate('business', 'businessName logoUrl');
+    const post = await Post.findOne({ _id: req.params.id, status: 'active' }).populate('business', 'businessName logoUrl');
     if (!post) return res.status(404).json({ message: 'Post not found' });
     res.json(post);
   } catch (error) {
@@ -80,13 +89,13 @@ const getPostById = async (req, res) => {
 // @route   PUT /api/posts/:id
 const updatePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findOne({ _id: req.params.id, status: 'active' });
     if (!post) return res.status(404).json({ message: 'Post not found' });
     if (post.business.toString() !== req.business._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to edit this post' });
     }
 
-    const allowedFields = ['postType', 'title', 'content', 'imageUrl', 'tags', 'expiresAt', 'collaborationRequirements'];
+    const allowedFields = ['postType', 'title', 'content', 'imageUrl', 'imagePublicId', 'tags', 'expiresAt', 'validFrom', 'collaborationRequirements'];
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) post[field] = req.body[field];
     });
@@ -97,17 +106,29 @@ const updatePost = async (req, res) => {
   }
 };
 
-// @desc    Delete a post (business only, must be owner)
+// @desc    Delete a post (business only, must be owner) — soft-deletes the
+//          record and destroys its Cloudinary image, if it has one.
 // @route   DELETE /api/posts/:id
 const deletePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: 'Post not found' });
+    if (!post || post.status === 'deleted') return res.status(404).json({ message: 'Post not found' });
     if (post.business.toString() !== req.business._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this post' });
     }
 
-    await post.deleteOne();
+    post.status = 'deleted';
+    post.deletedAt = new Date();
+    await post.save();
+
+    if (post.imagePublicId) {
+      try {
+        await cloudinary.uploader.destroy(post.imagePublicId);
+      } catch (cloudinaryError) {
+        console.error('Failed to delete Cloudinary asset for post', post._id, cloudinaryError.message);
+      }
+    }
+
     res.json({ message: 'Post deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -118,7 +139,7 @@ const deletePost = async (req, res) => {
 // @route   PUT /api/posts/:id/like
 const toggleLikePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findOne({ _id: req.params.id, status: 'active' });
     if (!post) return res.status(404).json({ message: 'Post not found' });
 
     const alreadyLiked = post.likes.includes(req.user._id);
@@ -142,7 +163,7 @@ const getConnectionsFeed = async (req, res) => {
   try {
     const myId = req.business._id;
     const limit = 20;
-    const notExpired = { $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] };
+    const notExpired = { status: 'active', $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] };
 
     const connections = await Connection.find({
       status: 'accepted',

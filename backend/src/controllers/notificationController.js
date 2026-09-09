@@ -6,7 +6,17 @@ const getNotifications = async (req, res) => {
       .populate({ path: 'post', populate: { path: 'business', select: 'businessName logoUrl industry' } })
       .sort({ createdAt: -1 })
       .limit(50);
-    res.json(notifications);
+
+    // An offer notification shares its expiry with the post itself — once
+    // that passes, or the post is deleted, the notification is hidden too.
+    const visible = notifications.filter((notification) => {
+      const post = notification.post;
+      if (!post || post.status === 'deleted') return false;
+      if (post.postType !== 'offer' || !post.expiresAt) return true;
+      return new Date(post.expiresAt) > new Date();
+    });
+
+    res.json(visible);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

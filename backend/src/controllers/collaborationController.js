@@ -1,6 +1,11 @@
 const Collaboration = require('../models/Collaboration');
 const Connection = require('../models/Connection');
 
+const normalizeStatus = (collaboration) => {
+  const item = collaboration.toObject ? collaboration.toObject() : collaboration;
+  return { ...item, status: item.status === 'accepted' ? 'active' : item.status };
+};
+
 // @desc    Send a collaboration request to another business
 // @route   POST /api/collaborations
 const sendCollaborationRequest = async (req, res) => {
@@ -39,7 +44,7 @@ const getReceivedRequests = async (req, res) => {
     const requests = await Collaboration.find({ recipient: req.business._id })
       .populate('requester', 'businessName logoUrl industry')
       .sort({ createdAt: -1 });
-    res.json(requests);
+    res.json(requests.map(normalizeStatus));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -52,7 +57,7 @@ const getSentRequests = async (req, res) => {
     const requests = await Collaboration.find({ requester: req.business._id })
       .populate('recipient', 'businessName logoUrl industry')
       .sort({ createdAt: -1 });
-    res.json(requests);
+    res.json(requests.map(normalizeStatus));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -62,21 +67,21 @@ const getSentRequests = async (req, res) => {
 // @route   PUT /api/collaborations/:id
 const respondToRequest = async (req, res) => {
   try {
-    const { status } = req.body; // 'accepted' or 'rejected'
+    const { status } = req.body; // 'active' or 'rejected'
     const collaboration = await Collaboration.findById(req.params.id);
 
     if (!collaboration) return res.status(404).json({ message: 'Request not found' });
     if (collaboration.recipient.toString() !== req.business._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to respond to this request' });
     }
-    if (!['accepted', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'Status must be accepted or rejected' });
+    if (!['active', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be active or rejected' });
     }
 
     collaboration.status = status;
     await collaboration.save();
 
-    if (status === 'accepted') {
+    if (status === 'active') {
       const existingConnection = await Connection.findOne({
         $or: [
           { requester: collaboration.requester, recipient: collaboration.recipient },
@@ -95,7 +100,29 @@ const respondToRequest = async (req, res) => {
       }
     }
 
-    res.json(collaboration);
+    res.json(normalizeStatus(collaboration));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Mark an active collaboration as completed
+// @route   PUT /api/collaborations/:id/complete
+const completeCollaboration = async (req, res) => {
+  try {
+    const collaboration = await Collaboration.findById(req.params.id);
+    if (!collaboration) return res.status(404).json({ message: 'Collaboration not found' });
+
+    const isParticipant = [collaboration.requester, collaboration.recipient]
+      .some((businessId) => businessId.toString() === req.business._id.toString());
+    if (!isParticipant) return res.status(403).json({ message: 'Not authorized to complete this collaboration' });
+    if (!['active', 'accepted'].includes(collaboration.status)) {
+      return res.status(400).json({ message: 'Only active collaborations can be completed' });
+    }
+
+    collaboration.status = 'completed';
+    await collaboration.save();
+    res.json(normalizeStatus(collaboration));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -106,4 +133,5 @@ module.exports = {
   getReceivedRequests,
   getSentRequests,
   respondToRequest,
+  completeCollaboration,
 };

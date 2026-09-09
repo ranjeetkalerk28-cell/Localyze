@@ -7,7 +7,7 @@ const collaborationSchema = new mongoose.Schema(
     message: { type: String, default: '' },
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'rejected'],
+      enum: ['pending', 'active', 'completed', 'rejected', 'accepted'],
       default: 'pending',
     },
   },

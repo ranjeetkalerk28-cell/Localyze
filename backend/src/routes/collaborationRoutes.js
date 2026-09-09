@@ -5,6 +5,7 @@ const {
   getReceivedRequests,
   getSentRequests,
   respondToRequest,
+  completeCollaboration,
 } = require('../controllers/collaborationController');
 const { protect, requireRole } = require('../middleware/authMiddleware');
 
@@ -15,5 +16,6 @@ router.post('/', sendCollaborationRequest);
 router.get('/received', getReceivedRequests);
 router.get('/sent', getSentRequests);
 router.put('/:id', respondToRequest);
+router.put('/:id/complete', completeCollaboration);
 
 module.exports = router;

@@ -10,5 +10,7 @@ router.use('/notifications', require('./notificationRoutes'));
 router.use('/follows', require('./followRoutes'));
 router.use('/connections', require('./connectionRoutes'));
 router.use('/businesses', require('./businessRoutes'));
+router.use('/stories', require('./storyRoutes'));
+router.use('/uploads', require('./uploadRoutes'));
 
 module.exports = router;

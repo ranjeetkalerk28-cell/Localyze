@@ -80,7 +80,7 @@ const getBusinessPosts = async (req, res) => {
       }
     }
 
-    const query = { business: id };
+    const query = { business: id, status: 'active' };
     if (postType) query.postType = postType;
     if (!canSeeAll) query.visibility = 'consumers_and_businesses';
 
