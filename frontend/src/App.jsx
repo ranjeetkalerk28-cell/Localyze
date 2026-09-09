@@ -21,7 +21,7 @@ import {
   UserRound,
 } from 'lucide-react'
 
-const API_URL = '/api'
+const API_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 
 const demoPosts = [
   {
