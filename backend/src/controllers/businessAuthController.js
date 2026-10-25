@@ -1,23 +1,32 @@
 const Business = require('../models/Business');
 const generateToken = require('../utils/generateToken');
 const CITIES = require('../constants/cities');
+const { isValidUsername } = require('../constants/username');
 
 // @desc    Register a new business
 // @route   POST /api/business/auth/register
 const registerBusiness = async (req, res) => {
   try {
     const { businessName, email, password, industry, city } = req.body;
+    const username = (req.body.username || '').toLowerCase().trim();
 
+    if (!isValidUsername(username)) {
+      return res.status(400).json({ message: 'Username must be 3-30 characters: lowercase letters, numbers, periods, or underscores' });
+    }
     if (!CITIES.includes(city)) return res.status(400).json({ message: 'A valid city is required' });
+
+    const usernameTaken = await Business.findOne({ username });
+    if (usernameTaken) return res.status(400).json({ message: 'Username already taken' });
 
     const exists = await Business.findOne({ email });
     if (exists) return res.status(400).json({ message: 'Business already registered' });
 
-    const business = await Business.create({ businessName, email, password, industry, city });
+    const business = await Business.create({ businessName, username, email, password, industry, city });
 
     res.status(201).json({
       _id: business._id,
       businessName: business.businessName,
+      username: business.username,
       email: business.email,
       token: generateToken(business._id, 'business'),
     });
@@ -37,6 +46,7 @@ const loginBusiness = async (req, res) => {
       res.json({
         _id: business._id,
         businessName: business.businessName,
+        username: business.username,
         email: business.email,
         token: generateToken(business._id, 'business'),
       });
@@ -62,7 +72,17 @@ const updateMyProfile = async (req, res) => {
       return res.status(400).json({ message: 'A valid city is required' });
     }
 
-    const allowedFields = ['businessName', 'industry', 'description', 'logoUrl', 'city'];
+    if (req.body.username !== undefined) {
+      const username = String(req.body.username).toLowerCase().trim();
+      if (!isValidUsername(username)) {
+        return res.status(400).json({ message: 'Username must be 3-30 characters: lowercase letters, numbers, periods, or underscores' });
+      }
+      const usernameTaken = await Business.findOne({ username, _id: { $ne: req.business._id } });
+      if (usernameTaken) return res.status(400).json({ message: 'Username already taken' });
+      req.body.username = username;
+    }
+
+    const allowedFields = ['businessName', 'username', 'industry', 'description', 'logoUrl', 'city'];
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) req.business[field] = req.body[field];
     });

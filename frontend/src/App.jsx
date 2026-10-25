@@ -381,7 +381,7 @@ function ProfilePage({ token, onExplore }) {
   const [following, setFollowing] = useState([])
   const [isLoadingFollowing, setIsLoadingFollowing] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ bio: '', interests: '', city: '' })
+  const [editForm, setEditForm] = useState({ username: '', bio: '', interests: '', city: '' })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -401,7 +401,7 @@ function ProfilePage({ token, onExplore }) {
   }, [token])
 
   function startEditing() {
-    setEditForm({ bio: profile.bio || '', interests: (profile.interests || []).join(', '), city: profile.city || '' })
+    setEditForm({ username: profile.username || '', bio: profile.bio || '', interests: (profile.interests || []).join(', '), city: profile.city || '' })
     setSaveError('')
     setIsEditing(true)
   }
@@ -435,6 +435,7 @@ function ProfilePage({ token, onExplore }) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
+          username: editForm.username,
           bio: editForm.bio,
           interests: editForm.interests.split(',').map((interest) => interest.trim()).filter(Boolean),
           city: editForm.city,
@@ -467,11 +468,12 @@ function ProfilePage({ token, onExplore }) {
               <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handlePhotoUpload} disabled={isUploadingPhoto} />
               <span>{isUploadingPhoto ? 'Uploading...' : 'Change photo'}</span>
             </label>
-            <div><strong>{name}</strong><span>{profile.email}{profile.city ? ` · ${profile.city}` : ''}</span></div>
+            <div><strong>{name}</strong>{profile.username && <span className="profile-handle">@{profile.username}</span>}<span>{profile.email}{profile.city ? ` · ${profile.city}` : ''}</span></div>
             {!isEditing && <button className="primary-button" onClick={startEditing}>Edit Profile</button>}
           </div>
           {isEditing ? (
             <form className="post-form profile-section" onSubmit={saveProfile}>
+              <label>Username<input value={editForm.username} onChange={(event) => setEditForm({ ...editForm, username: event.target.value })} required minLength="3" maxLength="30" pattern="[a-z0-9_.]+" placeholder="averymorgan" /></label>
               <label>Bio<textarea value={editForm.bio} onChange={(event) => setEditForm({ ...editForm, bio: event.target.value })} placeholder="Tell people about yourself..." /></label>
               <label>Interests <span>(comma separated)</span><input value={editForm.interests} onChange={(event) => setEditForm({ ...editForm, interests: event.target.value })} placeholder="food, design, music" /></label>
               <label>City<CitySelect value={editForm.city} onChange={(event) => setEditForm({ ...editForm, city: event.target.value })} /></label>
@@ -580,7 +582,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
   const [collabMessage, setCollabMessage] = useState('')
   const [collabStatus, setCollabStatus] = useState('idle')
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ businessName: '', industry: '', description: '', city: '' })
+  const [editForm, setEditForm] = useState({ businessName: '', username: '', industry: '', description: '', city: '' })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -650,7 +652,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
   }
 
   function startEditing() {
-    setEditForm({ businessName: business.businessName || '', industry: business.industry || '', description: business.description || '', city: business.city || '' })
+    setEditForm({ businessName: business.businessName || '', username: business.username || '', industry: business.industry || '', description: business.description || '', city: business.city || '' })
     setSaveError('')
     setIsEditing(true)
   }
@@ -722,7 +724,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
             ) : (
               <Avatar name={business.businessName} src={business.logoUrl} large />
             )}
-            <div><strong>{business.businessName}</strong><span>{business.industry || 'Local business'}{business.city ? ` · ${business.city}` : ''}</span></div>
+            <div><strong>{business.businessName}</strong>{business.username && <span className="profile-handle">@{business.username}</span>}<span>{business.industry || 'Local business'}{business.city ? ` · ${business.city}` : ''}</span></div>
             {isOwnProfile ? (
               !isEditing && <button className="primary-button" onClick={startEditing}>Edit Profile</button>
             ) : viewerIsBusiness ? (
@@ -734,6 +736,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
           {isEditing && (
             <form className="post-form profile-section" onSubmit={saveProfile}>
               <label>Business name<input value={editForm.businessName} onChange={(event) => setEditForm({ ...editForm, businessName: event.target.value })} required /></label>
+              <label>Username<input value={editForm.username} onChange={(event) => setEditForm({ ...editForm, username: event.target.value })} required minLength="3" maxLength="30" pattern="[a-z0-9_.]+" placeholder="commonground" /></label>
               <label>Industry<input value={editForm.industry} onChange={(event) => setEditForm({ ...editForm, industry: event.target.value })} /></label>
               <label>City<CitySelect value={editForm.city} onChange={(event) => setEditForm({ ...editForm, city: event.target.value })} /></label>
               <label>Description<textarea value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} placeholder="Tell people what makes you different..." /></label>
@@ -924,7 +927,7 @@ function SearchPage({ token, isBusiness, onSelectBusiness }) {
           {results.map((business) => (
             <button className="suggestion business-suggestion-link" key={business._id} onClick={() => onSelectBusiness(business._id)}>
               <Avatar name={business.businessName} src={business.logoUrl} />
-              <span><strong>{business.businessName}</strong><small>{business.industry || 'Local business'} · {business.city}</small></span>
+              <span><strong>{business.businessName}</strong><small>{business.username ? `@${business.username} · ` : ''}{business.industry || 'Local business'} · {business.city}</small></span>
             </button>
           ))}
         </div>
@@ -953,7 +956,7 @@ function AuthPage({ onAuthenticated }) {
   const [mode, setMode] = useState('login')
   const [accountType, setAccountType] = useState('user')
   const [registerStep, setRegisterStep] = useState('type')
-  const [form, setForm] = useState({ name: '', businessName: '', email: '', password: '', industry: '', interests: '', city: '' })
+  const [form, setForm] = useState({ name: '', businessName: '', username: '', email: '', password: '', industry: '', interests: '', city: '' })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -987,8 +990,8 @@ function AuthPage({ onAuthenticated }) {
     setIsSubmitting(true)
     try {
       const payload = isBusiness
-        ? { businessName: form.businessName, email: form.email, password: form.password, industry: form.industry, city: form.city }
-        : { name: form.name, email: form.email, password: form.password, interests: form.interests.split(',').map((item) => item.trim()).filter(Boolean), city: form.city }
+        ? { businessName: form.businessName, username: form.username, email: form.email, password: form.password, industry: form.industry, city: form.city }
+        : { name: form.name, username: form.username, email: form.email, password: form.password, interests: form.interests.split(',').map((item) => item.trim()).filter(Boolean), city: form.city }
       const response = await fetch(`${API_URL}/${isBusiness ? 'business' : 'user'}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1012,7 +1015,7 @@ function AuthPage({ onAuthenticated }) {
   }
 
   if (mode === 'register') {
-    return <div className="auth-page"><AuthBrand /><section className="auth-panel"><button className="back-link" onClick={() => setRegisterStep('type')}><ArrowLeft size={16} /> Change account type</button><p className="eyebrow">{isBusiness ? 'Business details' : 'Consumer details'}</p><h1>Create your account</h1><p className="auth-intro">A few details and you’re ready to find your local signal.</p><form className="auth-form" onSubmit={submitRegistration}>{isBusiness ? <><label>Business name<input name="businessName" value={form.businessName} onChange={updateField} required placeholder="Common Ground" /></label><label>Industry<input name="industry" value={form.industry} onChange={updateField} required placeholder="Hospitality, design, retail..." /></label></> : <><label>Your name<input name="name" value={form.name} onChange={updateField} required placeholder="Avery Morgan" /></label><label>Interests <span>(optional)</span><input name="interests" value={form.interests} onChange={updateField} placeholder="food, design, music" /></label></>}<label>City <span>(your local ecosystem)</span><CitySelect value={form.city} onChange={updateField} /></label><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} minLength="6" required placeholder="At least 6 characters" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Creating account...' : 'Create account'}</button></form></section></div>
+    return <div className="auth-page"><AuthBrand /><section className="auth-panel"><button className="back-link" onClick={() => setRegisterStep('type')}><ArrowLeft size={16} /> Change account type</button><p className="eyebrow">{isBusiness ? 'Business details' : 'Consumer details'}</p><h1>Create your account</h1><p className="auth-intro">A few details and you’re ready to find your local signal.</p><form className="auth-form" onSubmit={submitRegistration}>{isBusiness ? <><label>Business name<input name="businessName" value={form.businessName} onChange={updateField} required placeholder="Common Ground" /></label><label>Industry<input name="industry" value={form.industry} onChange={updateField} required placeholder="Hospitality, design, retail..." /></label></> : <><label>Your name<input name="name" value={form.name} onChange={updateField} required placeholder="Avery Morgan" /></label><label>Interests <span>(optional)</span><input name="interests" value={form.interests} onChange={updateField} placeholder="food, design, music" /></label></>}<label>Username <span>(lowercase letters, numbers, periods, underscores)</span><input name="username" value={form.username} onChange={updateField} required minLength="3" maxLength="30" pattern="[a-z0-9_.]+" placeholder="commonground" /></label><label>City <span>(your local ecosystem)</span><CitySelect value={form.city} onChange={updateField} /></label><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} minLength="6" required placeholder="At least 6 characters" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Creating account...' : 'Create account'}</button></form></section></div>
   }
 
   return <div className="auth-page"><AuthBrand /><section className="auth-panel"><p className="eyebrow">Welcome to your local signal</p><h1>Find your people.</h1><p className="auth-intro">A thoughtful place for discovering businesses, ideas, and collaborations close to home.</p><div className="account-switcher"><button className={isBusiness ? 'selected' : ''} onClick={() => setAccountType('business')}><Building2 size={16} /> Business</button><button className={!isBusiness ? 'selected' : ''} onClick={() => setAccountType('user')}><UserRound size={16} /> Consumer</button></div><form className="auth-form" onSubmit={submitLogin}><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} required placeholder="Your password" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Logging in...' : 'Log in'}</button></form><p className="auth-footer">New to Localyze? <button onClick={() => { setMode('register'); setError('') }}>Create an account</button></p></section><p className="auth-legal">By continuing, you agree to Localyze’s terms and community guidelines.</p></div>

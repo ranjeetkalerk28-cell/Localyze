@@ -11,10 +11,21 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+      const account = decoded.role === 'business'
+        ? await Business.findById(decoded.id).select('-password')
+        : await User.findById(decoded.id).select('-password');
+
+      // The JWT is valid, but the account it points to is gone (e.g. deleted
+      // after the token was issued) — fail cleanly here instead of letting
+      // every downstream controller crash on a null req.business/req.user.
+      if (!account) {
+        return res.status(401).json({ message: 'Not authorized, account no longer exists' });
+      }
+
       if (decoded.role === 'business') {
-        req.business = await Business.findById(decoded.id).select('-password');
+        req.business = account;
       } else {
-        req.user = await User.findById(decoded.id).select('-password');
+        req.user = account;
       }
       req.role = decoded.role;
       next();

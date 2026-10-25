@@ -1,23 +1,32 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 const CITIES = require('../constants/cities');
+const { isValidUsername } = require('../constants/username');
 
 // @desc    Register a new user
 // @route   POST /api/user/auth/register
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, interests, city } = req.body;
+    const username = (req.body.username || '').toLowerCase().trim();
 
+    if (!isValidUsername(username)) {
+      return res.status(400).json({ message: 'Username must be 3-30 characters: lowercase letters, numbers, periods, or underscores' });
+    }
     if (!CITIES.includes(city)) return res.status(400).json({ message: 'A valid city is required' });
+
+    const usernameTaken = await User.findOne({ username });
+    if (usernameTaken) return res.status(400).json({ message: 'Username already taken' });
 
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ message: 'User already registered' });
 
-    const user = await User.create({ name, email, password, interests, city });
+    const user = await User.create({ name, username, email, password, interests, city });
 
     res.status(201).json({
       _id: user._id,
       name: user.name,
+      username: user.username,
       email: user.email,
       token: generateToken(user._id, 'user'),
     });
@@ -37,6 +46,7 @@ const loginUser = async (req, res) => {
       res.json({
         _id: user._id,
         name: user.name,
+        username: user.username,
         email: user.email,
         token: generateToken(user._id, 'user'),
       });
@@ -62,7 +72,17 @@ const updateMyProfile = async (req, res) => {
       return res.status(400).json({ message: 'A valid city is required' });
     }
 
-    const allowedFields = ['name', 'bio', 'interests', 'avatarUrl', 'city'];
+    if (req.body.username !== undefined) {
+      const username = String(req.body.username).toLowerCase().trim();
+      if (!isValidUsername(username)) {
+        return res.status(400).json({ message: 'Username must be 3-30 characters: lowercase letters, numbers, periods, or underscores' });
+      }
+      const usernameTaken = await User.findOne({ username, _id: { $ne: req.user._id } });
+      if (usernameTaken) return res.status(400).json({ message: 'Username already taken' });
+      req.body.username = username;
+    }
+
+    const allowedFields = ['name', 'username', 'bio', 'interests', 'avatarUrl', 'city'];
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) req.user[field] = req.body[field];
     });

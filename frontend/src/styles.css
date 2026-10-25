@@ -87,6 +87,7 @@ h1 { font-size: 29px; font-weight: 400; letter-spacing: -.8px; margin: 0; }
 .right-rail { padding-top: 84px; }
 .profile-card { align-items: center; display: flex; gap: 10px; margin-bottom: 38px; }
 .profile-card div:nth-child(2), .suggestion div:nth-child(2) { display: grid; gap: 4px; }
+.profile-handle { color: var(--blue); font-family: 'Trebuchet MS', sans-serif; font-size: 10px; }
 .profile-card button { margin-left: auto; }
 .suggestion-header { color: var(--muted); display: flex; font-family: 'Trebuchet MS', sans-serif; font-size: 11px; justify-content: space-between; margin-bottom: 18px; }
 .suggestion-header button { color: var(--ink); }
