@@ -3,6 +3,7 @@ const Follow = require('../models/Follow');
 const Notification = require('../models/Notification');
 const Business = require('../models/Business');
 const Connection = require('../models/Connection');
+const Activity = require('../models/Activity');
 const cloudinary = require('../config/cloudinary');
 
 // @desc    Create a post (business only)
@@ -150,6 +151,12 @@ const toggleLikePost = async (req, res) => {
     }
 
     await post.save();
+    await Activity.create({
+      user: req.user._id,
+      type: alreadyLiked ? 'unlike' : 'like',
+      business: post.business,
+      post: post._id,
+    });
     res.json({ likes: post.likes.length, liked: !alreadyLiked });
   } catch (error) {
     res.status(500).json({ message: error.message });

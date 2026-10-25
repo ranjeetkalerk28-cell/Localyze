@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Follow = require('../models/Follow');
 const Business = require('../models/Business');
+const Activity = require('../models/Activity');
 
 const isValidBusinessId = (businessId) => mongoose.isValidObjectId(businessId);
 
@@ -13,6 +14,7 @@ const followBusiness = async (req, res) => {
     if (!business) return res.status(404).json({ message: 'Business not found' });
 
     const follow = await Follow.create({ user: req.user._id, business: businessId });
+    await Activity.create({ user: req.user._id, type: 'follow', business: businessId });
     res.status(201).json({ following: true, follow });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ message: 'Already following this business', following: true });
@@ -27,6 +29,7 @@ const unfollowBusiness = async (req, res) => {
 
     const result = await Follow.findOneAndDelete({ user: req.user._id, business: businessId });
     if (!result) return res.status(404).json({ message: 'Follow relationship not found', following: false });
+    await Activity.create({ user: req.user._id, type: 'unfollow', business: businessId });
     res.json({ following: false });
   } catch (error) {
     res.status(500).json({ message: error.message });
