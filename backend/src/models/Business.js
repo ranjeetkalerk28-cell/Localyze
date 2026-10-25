@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const CITIES = require('../constants/cities');
 
 const businessSchema = new mongoose.Schema(
   {
@@ -9,6 +10,7 @@ const businessSchema = new mongoose.Schema(
     industry: { type: String, default: '' },
     description: { type: String, default: '' },
     logoUrl: { type: String, default: '' },
+    city: { type: String, required: true, enum: CITIES, index: true }, // drives city-scoped discovery/search
   },
   { timestamps: true }
 );

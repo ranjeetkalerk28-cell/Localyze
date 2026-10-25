@@ -8,13 +8,16 @@ const Follow = require('../models/Follow');
 // @route   GET /api/discover/posts
 const discoverPosts = async (req, res) => {
   try {
-    const { interests } = req.user;
+    const { interests, city } = req.user;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
+
+    const cityBusinessIds = (await Business.find({ city }).select('_id')).map((business) => business._id);
 
     const query = {
       status: 'active',
       visibility: { $in: ['consumers_and_businesses', null] },
+      business: { $in: cityBusinessIds },
       $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
       ...(interests && interests.length > 0 ? { tags: { $in: interests } } : {}),
     };
@@ -25,13 +28,14 @@ const discoverPosts = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit);
 
-    // Fill remaining slots with recent posts if interest-matching returned too few
+    // Fill remaining slots with recent posts (same city) if interest-matching returned too few
     if (posts.length < limit && interests && interests.length > 0) {
       const excludeIds = posts.map((p) => p._id);
       const fillerPosts = await Post.find({
         _id: { $nin: excludeIds },
         status: 'active',
         visibility: { $in: ['consumers_and_businesses', null] },
+        business: { $in: cityBusinessIds },
         $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
       })
         .populate('business', 'businessName logoUrl industry')
@@ -46,15 +50,15 @@ const discoverPosts = async (req, res) => {
   }
 };
 
-// @desc    Discover businesses relevant to the logged-in user
+// @desc    Discover businesses relevant to the logged-in user, scoped to their city
 // @route   GET /api/discover/businesses
 const discoverBusinesses = async (req, res) => {
   try {
-    const { interests } = req.user;
+    const { interests, city } = req.user;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
 
-    const query = interests && interests.length > 0 ? { industry: { $in: interests } } : {};
+    const query = { city, ...(interests && interests.length > 0 ? { industry: { $in: interests } } : {}) };
 
     const businesses = await Business.find(query)
       .select('-password')

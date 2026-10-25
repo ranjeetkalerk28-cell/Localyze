@@ -1,16 +1,19 @@
 const Business = require('../models/Business');
 const generateToken = require('../utils/generateToken');
+const CITIES = require('../constants/cities');
 
 // @desc    Register a new business
 // @route   POST /api/business/auth/register
 const registerBusiness = async (req, res) => {
   try {
-    const { businessName, email, password, industry } = req.body;
+    const { businessName, email, password, industry, city } = req.body;
+
+    if (!CITIES.includes(city)) return res.status(400).json({ message: 'A valid city is required' });
 
     const exists = await Business.findOne({ email });
     if (exists) return res.status(400).json({ message: 'Business already registered' });
 
-    const business = await Business.create({ businessName, email, password, industry });
+    const business = await Business.create({ businessName, email, password, industry, city });
 
     res.status(201).json({
       _id: business._id,
@@ -55,7 +58,11 @@ const getMyProfile = async (req, res) => {
 // @route   PUT /api/business/auth/me
 const updateMyProfile = async (req, res) => {
   try {
-    const allowedFields = ['businessName', 'industry', 'description', 'logoUrl'];
+    if (req.body.city !== undefined && !CITIES.includes(req.body.city)) {
+      return res.status(400).json({ message: 'A valid city is required' });
+    }
+
+    const allowedFields = ['businessName', 'industry', 'description', 'logoUrl', 'city'];
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) req.business[field] = req.body[field];
     });

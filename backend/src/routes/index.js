@@ -12,5 +12,6 @@ router.use('/connections', require('./connectionRoutes'));
 router.use('/businesses', require('./businessRoutes'));
 router.use('/stories', require('./storyRoutes'));
 router.use('/uploads', require('./uploadRoutes'));
+router.use('/meta', require('./metaRoutes'));
 
 module.exports = router;

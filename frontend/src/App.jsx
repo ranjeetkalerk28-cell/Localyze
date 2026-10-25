@@ -100,6 +100,24 @@ function Countdown({ targetDate, compact = false }) {
   return <span className={`countdown ${compact ? 'countdown-compact' : ''}`}>Offer ends in {label}</span>
 }
 
+function CitySelect({ name = 'city', value, onChange, required = true }) {
+  const [cities, setCities] = useState([])
+
+  useEffect(() => {
+    fetch(`${API_URL}/meta/cities`)
+      .then((response) => response.ok ? response.json() : [])
+      .then(setCities)
+      .catch(() => setCities([]))
+  }, [])
+
+  return (
+    <select name={name} value={value} onChange={onChange} required={required}>
+      <option value="" disabled>Select your city</option>
+      {cities.map((city) => <option key={city} value={city}>{city}</option>)}
+    </select>
+  )
+}
+
 function Avatar({ name, src, large = false }) {
   if (src) return <img className={`avatar avatar-photo ${large ? 'avatar-large' : ''}`} src={src} alt={name} />
   const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2)
@@ -363,7 +381,7 @@ function ProfilePage({ token, onExplore }) {
   const [following, setFollowing] = useState([])
   const [isLoadingFollowing, setIsLoadingFollowing] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ bio: '', interests: '' })
+  const [editForm, setEditForm] = useState({ bio: '', interests: '', city: '' })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -383,7 +401,7 @@ function ProfilePage({ token, onExplore }) {
   }, [token])
 
   function startEditing() {
-    setEditForm({ bio: profile.bio || '', interests: (profile.interests || []).join(', ') })
+    setEditForm({ bio: profile.bio || '', interests: (profile.interests || []).join(', '), city: profile.city || '' })
     setSaveError('')
     setIsEditing(true)
   }
@@ -419,6 +437,7 @@ function ProfilePage({ token, onExplore }) {
         body: JSON.stringify({
           bio: editForm.bio,
           interests: editForm.interests.split(',').map((interest) => interest.trim()).filter(Boolean),
+          city: editForm.city,
         }),
       })
       const data = await response.json()
@@ -448,13 +467,14 @@ function ProfilePage({ token, onExplore }) {
               <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handlePhotoUpload} disabled={isUploadingPhoto} />
               <span>{isUploadingPhoto ? 'Uploading...' : 'Change photo'}</span>
             </label>
-            <div><strong>{name}</strong><span>{profile.email}</span></div>
+            <div><strong>{name}</strong><span>{profile.email}{profile.city ? ` · ${profile.city}` : ''}</span></div>
             {!isEditing && <button className="primary-button" onClick={startEditing}>Edit Profile</button>}
           </div>
           {isEditing ? (
             <form className="post-form profile-section" onSubmit={saveProfile}>
               <label>Bio<textarea value={editForm.bio} onChange={(event) => setEditForm({ ...editForm, bio: event.target.value })} placeholder="Tell people about yourself..." /></label>
               <label>Interests <span>(comma separated)</span><input value={editForm.interests} onChange={(event) => setEditForm({ ...editForm, interests: event.target.value })} placeholder="food, design, music" /></label>
+              <label>City<CitySelect value={editForm.city} onChange={(event) => setEditForm({ ...editForm, city: event.target.value })} /></label>
               {saveError && <p className="auth-message">{saveError}</p>}
               <div className="edit-profile-actions">
                 <button type="button" onClick={() => setIsEditing(false)}>Cancel</button>
@@ -560,7 +580,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
   const [collabMessage, setCollabMessage] = useState('')
   const [collabStatus, setCollabStatus] = useState('idle')
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ businessName: '', industry: '', description: '' })
+  const [editForm, setEditForm] = useState({ businessName: '', industry: '', description: '', city: '' })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -630,7 +650,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
   }
 
   function startEditing() {
-    setEditForm({ businessName: business.businessName || '', industry: business.industry || '', description: business.description || '' })
+    setEditForm({ businessName: business.businessName || '', industry: business.industry || '', description: business.description || '', city: business.city || '' })
     setSaveError('')
     setIsEditing(true)
   }
@@ -702,7 +722,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
             ) : (
               <Avatar name={business.businessName} src={business.logoUrl} large />
             )}
-            <div><strong>{business.businessName}</strong><span>{business.industry || 'Local business'}</span></div>
+            <div><strong>{business.businessName}</strong><span>{business.industry || 'Local business'}{business.city ? ` · ${business.city}` : ''}</span></div>
             {isOwnProfile ? (
               !isEditing && <button className="primary-button" onClick={startEditing}>Edit Profile</button>
             ) : viewerIsBusiness ? (
@@ -715,6 +735,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
             <form className="post-form profile-section" onSubmit={saveProfile}>
               <label>Business name<input value={editForm.businessName} onChange={(event) => setEditForm({ ...editForm, businessName: event.target.value })} required /></label>
               <label>Industry<input value={editForm.industry} onChange={(event) => setEditForm({ ...editForm, industry: event.target.value })} /></label>
+              <label>City<CitySelect value={editForm.city} onChange={(event) => setEditForm({ ...editForm, city: event.target.value })} /></label>
               <label>Description<textarea value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} placeholder="Tell people what makes you different..." /></label>
               {saveError && <p className="auth-message">{saveError}</p>}
               <div className="edit-profile-actions">
@@ -865,6 +886,53 @@ function CollaborationsPage({ token, onExplore, onSelectBusiness }) {
   )
 }
 
+function SearchPage({ token, isBusiness, onSelectBusiness }) {
+  const [query, setQuery] = useState('')
+  const [city, setCity] = useState('')
+  const [results, setResults] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    fetch(`${API_URL}/${isBusiness ? 'business' : 'user'}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => response.ok ? response.json() : null)
+      .then((profile) => { if (profile?.city) setCity(profile.city) })
+  }, [token, isBusiness])
+
+  useEffect(() => {
+    if (!city) return
+    setIsLoading(true)
+    const params = new URLSearchParams({ city })
+    if (query.trim()) params.set('q', query.trim())
+    fetch(`${API_URL}/businesses/search?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => response.ok ? response.json() : [])
+      .then(setResults)
+      .catch(() => setResults([]))
+      .finally(() => setIsLoading(false))
+  }, [token, query, city])
+
+  return (
+    <section className="post-flow">
+      <p className="eyebrow">Localyze / Search</p>
+      <h1>Find a business.</h1>
+      <p className="dashboard-intro">Search by name or industry, filtered to a city of your choice.</p>
+      <div className="search-controls">
+        <input className="search-input" placeholder="Search by name or industry..." value={query} onChange={(event) => setQuery(event.target.value)} />
+        <CitySelect name="searchCity" value={city} onChange={(event) => setCity(event.target.value)} />
+      </div>
+      {!city ? <div className="loading-state">Loading your city...</div> : isLoading ? <div className="loading-state">Searching...</div> : results.length ? (
+        <div className="search-results">
+          {results.map((business) => (
+            <button className="suggestion business-suggestion-link" key={business._id} onClick={() => onSelectBusiness(business._id)}>
+              <Avatar name={business.businessName} src={business.logoUrl} />
+              <span><strong>{business.businessName}</strong><small>{business.industry || 'Local business'} · {business.city}</small></span>
+            </button>
+          ))}
+        </div>
+      ) : <div className="empty-state"><Search size={24} /><p>No businesses found in {city}.</p></div>}
+    </section>
+  )
+}
+
 function ComingSoon({ label, icon: Icon, onExplore }) {
   return (
     <section className="coming-soon">
@@ -885,7 +953,7 @@ function AuthPage({ onAuthenticated }) {
   const [mode, setMode] = useState('login')
   const [accountType, setAccountType] = useState('user')
   const [registerStep, setRegisterStep] = useState('type')
-  const [form, setForm] = useState({ name: '', businessName: '', email: '', password: '', industry: '', interests: '' })
+  const [form, setForm] = useState({ name: '', businessName: '', email: '', password: '', industry: '', interests: '', city: '' })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -919,8 +987,8 @@ function AuthPage({ onAuthenticated }) {
     setIsSubmitting(true)
     try {
       const payload = isBusiness
-        ? { businessName: form.businessName, email: form.email, password: form.password, industry: form.industry }
-        : { name: form.name, email: form.email, password: form.password, interests: form.interests.split(',').map((item) => item.trim()).filter(Boolean) }
+        ? { businessName: form.businessName, email: form.email, password: form.password, industry: form.industry, city: form.city }
+        : { name: form.name, email: form.email, password: form.password, interests: form.interests.split(',').map((item) => item.trim()).filter(Boolean), city: form.city }
       const response = await fetch(`${API_URL}/${isBusiness ? 'business' : 'user'}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -944,7 +1012,7 @@ function AuthPage({ onAuthenticated }) {
   }
 
   if (mode === 'register') {
-    return <div className="auth-page"><AuthBrand /><section className="auth-panel"><button className="back-link" onClick={() => setRegisterStep('type')}><ArrowLeft size={16} /> Change account type</button><p className="eyebrow">{isBusiness ? 'Business details' : 'Consumer details'}</p><h1>Create your account</h1><p className="auth-intro">A few details and you’re ready to find your local signal.</p><form className="auth-form" onSubmit={submitRegistration}>{isBusiness ? <><label>Business name<input name="businessName" value={form.businessName} onChange={updateField} required placeholder="Common Ground" /></label><label>Industry<input name="industry" value={form.industry} onChange={updateField} required placeholder="Hospitality, design, retail..." /></label></> : <><label>Your name<input name="name" value={form.name} onChange={updateField} required placeholder="Avery Morgan" /></label><label>Interests <span>(optional)</span><input name="interests" value={form.interests} onChange={updateField} placeholder="food, design, music" /></label></>}<label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} minLength="6" required placeholder="At least 6 characters" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Creating account...' : 'Create account'}</button></form></section></div>
+    return <div className="auth-page"><AuthBrand /><section className="auth-panel"><button className="back-link" onClick={() => setRegisterStep('type')}><ArrowLeft size={16} /> Change account type</button><p className="eyebrow">{isBusiness ? 'Business details' : 'Consumer details'}</p><h1>Create your account</h1><p className="auth-intro">A few details and you’re ready to find your local signal.</p><form className="auth-form" onSubmit={submitRegistration}>{isBusiness ? <><label>Business name<input name="businessName" value={form.businessName} onChange={updateField} required placeholder="Common Ground" /></label><label>Industry<input name="industry" value={form.industry} onChange={updateField} required placeholder="Hospitality, design, retail..." /></label></> : <><label>Your name<input name="name" value={form.name} onChange={updateField} required placeholder="Avery Morgan" /></label><label>Interests <span>(optional)</span><input name="interests" value={form.interests} onChange={updateField} placeholder="food, design, music" /></label></>}<label>City <span>(your local ecosystem)</span><CitySelect value={form.city} onChange={updateField} /></label><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} minLength="6" required placeholder="At least 6 characters" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Creating account...' : 'Create account'}</button></form></section></div>
   }
 
   return <div className="auth-page"><AuthBrand /><section className="auth-panel"><p className="eyebrow">Welcome to your local signal</p><h1>Find your people.</h1><p className="auth-intro">A thoughtful place for discovering businesses, ideas, and collaborations close to home.</p><div className="account-switcher"><button className={isBusiness ? 'selected' : ''} onClick={() => setAccountType('business')}><Building2 size={16} /> Business</button><button className={!isBusiness ? 'selected' : ''} onClick={() => setAccountType('user')}><UserRound size={16} /> Consumer</button></div><form className="auth-form" onSubmit={submitLogin}><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} required placeholder="Your password" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Logging in...' : 'Log in'}</button></form><p className="auth-footer">New to Localyze? <button onClick={() => { setMode('register'); setError('') }}>Create an account</button></p></section><p className="auth-legal">By continuing, you agree to Localyze’s terms and community guidelines.</p></div>
@@ -1042,7 +1110,7 @@ function App() {
               <><AccountSummary token={authToken} isBusiness={isBusiness} /><div className="suggestion-header"><strong>Businesses to follow</strong></div><SuggestedBusinesses token={authToken} onSelectBusiness={setViewingBusinessId} /></>
             )}<p className="rail-footer">About · Help · Press · API · Jobs · Privacy<br />© 2026 LOCALYZE</p></aside>
           </div>
-        ) : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={setViewingBusinessId} /> : <ProfilePage token={authToken} onExplore={() => setActivePage('Home')} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
+        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} /> : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={setViewingBusinessId} /> : <ProfilePage token={authToken} onExplore={() => setActivePage('Home')} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
       </main>
     </div>
   )

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const CITIES = require('../constants/cities');
 
 const userSchema = new mongoose.Schema(
   {
@@ -9,6 +10,7 @@ const userSchema = new mongoose.Schema(
     interests: [{ type: String }], // used for discover matching
     bio: { type: String, default: '' },
     avatarUrl: { type: String, default: '' },
+    city: { type: String, required: true, enum: CITIES, index: true }, // drives city-scoped discovery/search
   },
   { timestamps: true }
 );

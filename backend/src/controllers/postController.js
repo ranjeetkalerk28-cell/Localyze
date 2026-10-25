@@ -156,8 +156,8 @@ const toggleLikePost = async (req, res) => {
   }
 };
 
-// @desc    Feed for a business: posts from connections, backfilled with
-//          same-industry posts from other businesses when under-filled.
+// @desc    Feed for a business: posts from connections (regardless of city),
+//          backfilled with same-industry, same-city posts when under-filled.
 // @route   GET /api/posts/feed
 const getConnectionsFeed = async (req, res) => {
   try {
@@ -185,6 +185,7 @@ const getConnectionsFeed = async (req, res) => {
     if (posts.length < limit) {
       const industryBusinesses = await Business.find({
         industry: req.business.industry,
+        city: req.business.city,
         _id: { $nin: [...connectedIds, myId] },
       }).select('_id');
       const industryBusinessIds = industryBusinesses.map((business) => business._id);

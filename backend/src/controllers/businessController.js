@@ -4,12 +4,39 @@ const Connection = require('../models/Connection');
 const Collaboration = require('../models/Collaboration');
 const Post = require('../models/Post');
 
+// @desc    Search businesses by name/industry, filtered by city (defaults to the caller's own city)
+// @route   GET /api/businesses/search
+const searchBusinesses = async (req, res) => {
+  try {
+    const { q = '' } = req.query;
+    const city = req.query.city || req.user?.city || req.business?.city;
+
+    const query = {};
+    if (city) query.city = city;
+    if (q.trim()) {
+      query.$or = [
+        { businessName: { $regex: q.trim(), $options: 'i' } },
+        { industry: { $regex: q.trim(), $options: 'i' } },
+      ];
+    }
+
+    const businesses = await Business.find(query)
+      .select('businessName industry logoUrl city')
+      .sort({ businessName: 1 })
+      .limit(30);
+
+    res.json(businesses);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Get a single business's public profile, with follower/connection/collaboration counts
 // @route   GET /api/businesses/:id
 const getBusinessById = async (req, res) => {
   try {
     const { id } = req.params;
-    const business = await Business.findById(id).select('businessName industry description logoUrl createdAt');
+    const business = await Business.findById(id).select('businessName industry description logoUrl city createdAt');
     if (!business) return res.status(404).json({ message: 'Business not found' });
 
     const acceptedEitherDirection = { status: 'accepted', $or: [{ requester: id }, { recipient: id }] };
@@ -93,4 +120,4 @@ const getBusinessPosts = async (req, res) => {
   }
 };
 
-module.exports = { getBusinessById, getBusinessFollowers, getBusinessConnections, getBusinessPosts };
+module.exports = { searchBusinesses, getBusinessById, getBusinessFollowers, getBusinessConnections, getBusinessPosts };
