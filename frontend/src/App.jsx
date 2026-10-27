@@ -1054,8 +1054,13 @@ function App() {
         setIsLoading(false)
         return
       }
+      setIsLoading(true)
       try {
         const response = await fetch(`${API_URL}/${isBusiness ? 'posts/feed' : 'discover/posts'}`, { headers: { Authorization: `Bearer ${token}` } })
+        if (response.status === 401) {
+          onLogout()
+          return
+        }
         if (response.ok) {
           const data = await response.json()
           setPosts(isBusiness ? (data.length ? data : demoPosts) : data)
@@ -1067,7 +1072,7 @@ function App() {
       }
     }
     loadPosts()
-  }, [])
+  }, [authToken])
 
   const activeItem = visibleNavItems.find((item) => item.label === activePage)
   const ActiveIcon = activeItem?.icon || Home
