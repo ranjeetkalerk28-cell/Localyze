@@ -2,47 +2,31 @@ const Post = require('../models/Post');
 const Business = require('../models/Business');
 const Follow = require('../models/Follow');
 
-// @desc    Discover posts relevant to the logged-in user
-//          Matches post tags against the user's interests when available,
-//          otherwise falls back to the most recent posts.
+// @desc    Return posts from businesses the logged-in consumer follows
+//          (newest first). No fallback to other posts yet -- an empty
+//          follow list means an empty feed, by product decision, until
+//          the future Explore page covers interest/city-based discovery.
 // @route   GET /api/discover/posts
 const discoverPosts = async (req, res) => {
   try {
-    const { interests, city } = req.user;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
 
-    const cityBusinessIds = (await Business.find({ city }).select('_id')).map((business) => business._id);
+    const follows = await Follow.find({ user: req.user._id }).select('business');
+    const followedIds = follows.map((follow) => follow.business);
 
-    const query = {
+    if (followedIds.length === 0) return res.json([]);
+
+    const posts = await Post.find({
       status: 'active',
       visibility: { $in: ['consumers_and_businesses', null] },
-      business: { $in: cityBusinessIds },
+      business: { $in: followedIds },
       $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
-      ...(interests && interests.length > 0 ? { tags: { $in: interests } } : {}),
-    };
-
-    const posts = await Post.find(query)
+    })
       .populate('business', 'businessName logoUrl industry')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
-
-    // Fill remaining slots with recent posts (same city) if interest-matching returned too few
-    if (posts.length < limit && interests && interests.length > 0) {
-      const excludeIds = posts.map((p) => p._id);
-      const fillerPosts = await Post.find({
-        _id: { $nin: excludeIds },
-        status: 'active',
-        visibility: { $in: ['consumers_and_businesses', null] },
-        business: { $in: cityBusinessIds },
-        $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
-      })
-        .populate('business', 'businessName logoUrl industry')
-        .sort({ createdAt: -1 })
-        .limit(limit - posts.length);
-      return res.json([...posts, ...fillerPosts]);
-    }
 
     res.json(posts);
   } catch (error) {

@@ -1058,7 +1058,7 @@ function App() {
         const response = await fetch(`${API_URL}/${isBusiness ? 'posts/feed' : 'discover/posts'}`, { headers: { Authorization: `Bearer ${token}` } })
         if (response.ok) {
           const data = await response.json()
-          setPosts(data.length ? data : demoPosts)
+          setPosts(isBusiness ? (data.length ? data : demoPosts) : data)
         }
       } catch {
         // Demo content keeps the UI useful while the API is offline.
@@ -1105,7 +1105,11 @@ function App() {
             <section className="feed-column">
               <div className="feed-heading"><div><p className="eyebrow">{isBusiness ? 'Your network' : 'Your local signal'}</p><h1>{isBusiness ? 'Fresh from your connections' : 'Fresh from your people'}</h1></div><button className="filter-button"><Sparkles size={16} /> For you</button></div>
               <StoriesRow token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} />
-              {isLoading ? <div className="loading-state">Finding the latest local stories...</div> : posts.map((post) => <PostCard post={post} token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} key={post._id} />)}
+              {isLoading ? (
+                <div className="loading-state">Finding the latest local stories...</div>
+              ) : !isBusiness && posts.length === 0 ? (
+                <div className="empty-state"><Sparkles size={24} /><p>Follow more businesses to see their posts here.</p><button className="primary-button" onClick={() => setActivePage('Search')}>Find businesses to follow</button></div>
+              ) : posts.map((post) => <PostCard post={post} token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} key={post._id} />)}
             </section>
             <aside className="right-rail">{isBusiness ? (
               <><div className="suggestion-header"><strong>Grow your network</strong></div><p className="dashboard-intro">Visit another business's profile from a post in your feed to connect or request a collaboration.</p></>
