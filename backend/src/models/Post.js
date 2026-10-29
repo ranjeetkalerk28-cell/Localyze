@@ -28,6 +28,8 @@ const postSchema = new mongoose.Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
+postSchema.index({ business: 1, status: 1, createdAt: -1 });
+
 // Derived, not stored — so it can never drift out of sync with expiresAt.
 postSchema.virtual('offerStatus').get(function () {
   if (this.postType !== 'offer') return undefined;

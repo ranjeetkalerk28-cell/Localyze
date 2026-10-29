@@ -183,7 +183,7 @@ function PostCard({ post, token, userId, onSelectBusiness }) {
         </div>
         <button className="icon-button post-menu" aria-label="More post options"><MoreHorizontal size={19} /></button>
       </header>
-      {post.imageUrl ? <img className="post-image" src={post.imageUrl} alt={post.title} /> : <div className="post-image post-image-empty"><Sparkles size={28} /><span>New from {businessName}</span></div>}
+      {post.imageUrl ? <img className="post-image" src={post.imageUrl} alt={post.title} loading="lazy" decoding="async" /> : <div className="post-image post-image-empty"><Sparkles size={28} /><span>New from {businessName}</span></div>}
       <div className="post-actions">
         <div className="action-group">
           <button className={`icon-button ${liked ? 'is-liked' : ''}`} onClick={toggleLike} aria-label="Like post"><Heart size={22} fill={liked ? 'currentColor' : 'none'} /></button>

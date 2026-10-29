@@ -13,4 +13,7 @@ const connectionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+connectionSchema.index({ requester: 1, status: 1 });
+connectionSchema.index({ recipient: 1, status: 1 });
+
 module.exports = mongoose.model('Connection', connectionSchema);
