@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
+const connectDB = require('./config/db');
 
 const app = express();
 
@@ -27,6 +28,16 @@ app.use(
 );
 
 app.use(express.json());
+
+app.use('/api', async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error(`Error connecting to MongoDB: ${error.message}`);
+    next(error);
+  }
+});
 
 app.use('/api', routes);
 

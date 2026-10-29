@@ -9,3 +9,8 @@ atlas-credentials.env
 credentials.txt
 .claude/*.lock
 .claude/settings.local.json
+
+#files
+DEPLOYMENT_CHECKLIST.md
+Localyze_Workflows.docx
+accounts.xlsx
