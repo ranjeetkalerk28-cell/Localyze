@@ -7,13 +7,16 @@ const getNotifications = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(50);
 
-    // An offer notification shares its expiry with the post itself — once
-    // that passes, or the post is deleted, the notification is hidden too.
+    // An offer notification shares its validity window with the post itself —
+    // hidden once it expires, and held back until its validFrom start date,
+    // just like the post is held out of feeds until then.
     const visible = notifications.filter((notification) => {
       const post = notification.post;
       if (!post || post.status === 'deleted') return false;
-      if (post.postType !== 'offer' || !post.expiresAt) return true;
-      return new Date(post.expiresAt) > new Date();
+      if (post.postType !== 'offer') return true;
+      if (post.expiresAt && new Date(post.expiresAt) <= new Date()) return false;
+      if (post.validFrom && new Date(post.validFrom) > new Date()) return false;
+      return true;
     });
 
     res.json(visible);

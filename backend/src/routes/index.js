@@ -6,6 +6,7 @@ router.use('/user/auth', require('./userAuthRoutes'));
 router.use('/posts', require('./postRoutes'));
 router.use('/collaborations', require('./collaborationRoutes'));
 router.use('/discover', require('./discoverRoutes'));
+router.use('/saved', require('./savedRoutes'));
 router.use('/notifications', require('./notificationRoutes'));
 router.use('/follows', require('./followRoutes'));
 router.use('/connections', require('./connectionRoutes'));

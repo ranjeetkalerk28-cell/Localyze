@@ -5,6 +5,7 @@ const Business = require('../models/Business');
 const Connection = require('../models/Connection');
 const Activity = require('../models/Activity');
 const cloudinary = require('../config/cloudinary');
+const { visibleNowFilter } = require('../utils/postVisibility');
 
 // @desc    Create a post (business only)
 // @route   POST /api/posts
@@ -170,7 +171,7 @@ const getConnectionsFeed = async (req, res) => {
   try {
     const myId = req.business._id;
     const limit = 20;
-    const notExpired = { status: 'active', $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] };
+    const notExpired = { status: 'active', ...visibleNowFilter() };
 
     const connections = await Connection.find({
       status: 'accepted',

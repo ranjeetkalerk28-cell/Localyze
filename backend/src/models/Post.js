@@ -30,10 +30,11 @@ const postSchema = new mongoose.Schema(
 
 postSchema.index({ business: 1, status: 1, createdAt: -1 });
 
-// Derived, not stored — so it can never drift out of sync with expiresAt.
+// Derived, not stored — so it can never drift out of sync with expiresAt/validFrom.
 postSchema.virtual('offerStatus').get(function () {
   if (this.postType !== 'offer') return undefined;
   if (this.expiresAt && this.expiresAt.getTime() <= Date.now()) return 'expired';
+  if (this.validFrom && this.validFrom.getTime() > Date.now()) return 'upcoming';
   return 'active';
 });
 

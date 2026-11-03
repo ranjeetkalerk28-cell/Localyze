@@ -1,6 +1,7 @@
 const Post = require('../models/Post');
 const Business = require('../models/Business');
 const Follow = require('../models/Follow');
+const { visibleNowFilter } = require('../utils/postVisibility');
 
 // @desc    Return posts from businesses the logged-in consumer follows
 //          (newest first). No fallback to other posts yet -- an empty
@@ -21,7 +22,43 @@ const discoverPosts = async (req, res) => {
       status: 'active',
       visibility: { $in: ['consumers_and_businesses', null] },
       business: { $in: followedIds },
-      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+      ...visibleNowFilter(),
+    })
+      .populate('business', 'businessName logoUrl industry')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.json(posts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Explore: posts from businesses relevant to the logged-in user's
+//          city or interests, regardless of follow status (newest first).
+//          This is the discovery surface discoverPosts defers to.
+// @route   GET /api/discover/explore
+const discoverExplore = async (req, res) => {
+  try {
+    const { interests, city } = req.user;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const orClauses = [
+      ...(city ? [{ city }] : []),
+      ...(interests && interests.length > 0 ? [{ industry: { $in: interests } }] : []),
+    ];
+    if (orClauses.length === 0) return res.json([]);
+
+    const relevantBusinesses = await Business.find({ $or: orClauses }).select('_id');
+    if (relevantBusinesses.length === 0) return res.json([]);
+
+    const posts = await Post.find({
+      status: 'active',
+      visibility: { $in: ['consumers_and_businesses', null] },
+      business: { $in: relevantBusinesses.map((business) => business._id) },
+      ...visibleNowFilter(),
     })
       .populate('business', 'businessName logoUrl industry')
       .sort({ createdAt: -1 })
@@ -61,4 +98,4 @@ const discoverBusinesses = async (req, res) => {
   }
 };
 
-module.exports = { discoverPosts, discoverBusinesses };
+module.exports = { discoverPosts, discoverExplore, discoverBusinesses };

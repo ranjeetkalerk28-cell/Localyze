@@ -23,29 +23,6 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 
-const demoPosts = [
-  {
-    _id: 'demo-1',
-    title: 'A slower morning, on purpose.',
-    content: 'Notes from a quiet table in the city. Good coffee, better conversations, and a little room to think.',
-    imageUrl: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=85',
-    tags: ['coffee', 'local', 'slow mornings'],
-    likes: ['1', '2', '3', '4'],
-    business: { businessName: 'Common Ground', industry: 'Hospitality' },
-    createdAt: '2026-09-06T09:30:00.000Z',
-  },
-  {
-    _id: 'demo-2',
-    title: 'Objects with a second life.',
-    content: 'Our new collection is made from reclaimed materials and designed to live with you for a long time.',
-    imageUrl: 'https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&w=1200&q=85',
-    tags: ['design', 'sustainable', 'objects'],
-    likes: ['5', '6'],
-    business: { businessName: 'Folk Form', industry: 'Design' },
-    createdAt: '2026-09-05T15:10:00.000Z',
-  },
-]
-
 const navItems = [
   { label: 'Home', icon: Home },
   { label: 'Search', icon: Search },
@@ -137,13 +114,21 @@ async function uploadImageFile(token, file, type = 'post') {
   return { url: data.url, publicId: data.publicId }
 }
 
-function PostCard({ post, token, userId, onSelectBusiness }) {
+function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false, onSaveChange }) {
   const isRealPost = typeof post._id === 'string' && !post._id.startsWith('demo-')
   const [liked, setLiked] = useState(() => Boolean(userId && post.likes?.includes(userId)))
   const [likeCount, setLikeCount] = useState(post.likes?.length || 0)
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved] = useState(initialSaved)
   const [isLiking, setIsLiking] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [showComments, setShowComments] = useState(false)
+  const [comments, setComments] = useState([])
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const businessName = post.business?.businessName || 'Localyze member'
+
+  useEffect(() => setSaved(initialSaved), [initialSaved])
 
   async function toggleLike() {
     if (!isRealPost || !token || isLiking) return
@@ -169,6 +154,60 @@ function PostCard({ post, token, userId, onSelectBusiness }) {
     }
   }
 
+  async function toggleSave() {
+    if (!isRealPost || !token || isSaving) return
+    setIsSaving(true)
+    const next = !saved
+    setSaved(next)
+    try {
+      const response = await fetch(`${API_URL}/saved/${post._id}`, {
+        method: next ? 'POST' : 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok && response.status !== 409) throw new Error('Unable to update saved post')
+      onSaveChange?.(post._id, next)
+    } catch {
+      setSaved(!next)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function toggleComments() {
+    const opening = !showComments
+    setShowComments(opening)
+    if (opening && isRealPost && comments.length === 0) {
+      setIsLoadingComments(true)
+      try {
+        const response = await fetch(`${API_URL}/posts/${post._id}/comments`, { headers: { Authorization: `Bearer ${token}` } })
+        if (response.ok) setComments(await response.json())
+      } finally {
+        setIsLoadingComments(false)
+      }
+    }
+  }
+
+  async function submitComment(event) {
+    event.preventDefault()
+    if (!isRealPost || !token || !commentText.trim() || isSubmittingComment) return
+    setIsSubmittingComment(true)
+    try {
+      const response = await fetch(`${API_URL}/posts/${post._id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: commentText.trim() }),
+      })
+      if (!response.ok) throw new Error('Unable to post comment')
+      const comment = await response.json()
+      setComments((previous) => [...previous, comment])
+      setCommentText('')
+    } catch {
+      // Leave the draft in place so the user can retry.
+    } finally {
+      setIsSubmittingComment(false)
+    }
+  }
+
   return (
     <article className="post-card">
       <header className="post-header">
@@ -187,10 +226,9 @@ function PostCard({ post, token, userId, onSelectBusiness }) {
       <div className="post-actions">
         <div className="action-group">
           <button className={`icon-button ${liked ? 'is-liked' : ''}`} onClick={toggleLike} aria-label="Like post"><Heart size={22} fill={liked ? 'currentColor' : 'none'} /></button>
-          <button className="icon-button" aria-label="Comment on post"><MessageCircle size={22} /></button>
-          <button className="icon-button" aria-label="Share post"><Send size={22} /></button>
+          <button className="icon-button" onClick={toggleComments} aria-label="Comment on post"><MessageCircle size={22} /></button>
         </div>
-        <button className={`icon-button ${saved ? 'is-saved' : ''}`} onClick={() => setSaved(!saved)} aria-label="Save post"><Bookmark size={22} fill={saved ? 'currentColor' : 'none'} /></button>
+        <button className={`icon-button ${saved ? 'is-saved' : ''}`} onClick={toggleSave} aria-label="Save post"><Bookmark size={22} fill={saved ? 'currentColor' : 'none'} /></button>
       </div>
       <div className="post-copy">
         <span className={`post-type post-type-${post.postType || 'offer'}`}>{post.postType || 'offer'}</span>
@@ -201,10 +239,32 @@ function PostCard({ post, token, userId, onSelectBusiness }) {
         <div className="tag-row">{(post.tags || []).map((tag) => <span key={tag}>#{tag}</span>)}</div>
         <time>{formatDate(post.createdAt)}</time>
       </div>
-      <form className="comment-form" onSubmit={(event) => event.preventDefault()}>
-        <input aria-label="Add a comment" placeholder="Add a comment..." />
-        <button type="submit">Post</button>
-      </form>
+      {showComments && (
+        <div className="comments-section">
+          {isLoadingComments ? (
+            <p className="dashboard-intro">Loading comments...</p>
+          ) : comments.length === 0 ? (
+            <p className="dashboard-intro">No comments yet.</p>
+          ) : (
+            <ul className="comment-list">
+              {comments.map((comment) => (
+                <li key={comment._id}><strong>{comment.user?.name || comment.user?.username || 'Someone'}</strong> {comment.content}</li>
+              ))}
+            </ul>
+          )}
+          {isRealPost && (
+            <form className="comment-form" onSubmit={submitComment}>
+              <input
+                aria-label="Add a comment"
+                placeholder="Add a comment..."
+                value={commentText}
+                onChange={(event) => setCommentText(event.target.value)}
+              />
+              <button type="submit" disabled={isSubmittingComment || !commentText.trim()}>Post</button>
+            </form>
+          )}
+        </div>
+      )}
     </article>
   )
 }
@@ -299,6 +359,109 @@ function NotificationsPage({ token, isBusiness, onExplore }) {
   const items = isBusiness ? requests : notifications
 
   return <section className="notifications-page"><p className="eyebrow">Localyze / Notifications</p><h1>{isBusiness ? 'Connection requests' : 'Good things to know.'}</h1><p className="dashboard-intro">{isBusiness ? 'Businesses that want to connect with you.' : 'Offers and updates from businesses in your local signal.'}</p>{isLoading ? <div className="loading-state">{isBusiness ? 'Checking for requests...' : 'Checking for new offers...'}</div> : items.length ? <div className="notification-list">{isBusiness ? requests.map((request) => <article className="notification-item unread" key={request._id}><div className="notification-icon"><Briefcase size={18} /></div><div><strong>{request.requester?.businessName} wants to connect</strong><span>{request.requester?.industry || 'Local business'}</span></div><button className="primary-button" onClick={() => respond(request._id, 'accepted')}>Accept</button><button onClick={() => respond(request._id, 'rejected')}>Reject</button></article>) : notifications.map((notification) => <article className={`notification-item ${notification.read ? '' : 'unread'}`} key={notification._id}><div className="notification-icon"><Sparkles size={18} /></div><div><strong>{notification.message}</strong><span>{new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(notification.createdAt))}</span>{notification.post?.postType === 'offer' && notification.post?.expiresAt && <Countdown targetDate={notification.post.expiresAt} compact />}</div></article>)}</div> : <div className="empty-state"><Sparkles size={24} /><p>{isBusiness ? 'No connection requests yet.' : 'No offers yet. We’ll let you know when something good lands.'}</p><button className="primary-button" onClick={onExplore}>Explore the feed</button></div>}</section>
+}
+
+function ExplorePage({ token, userId, onSelectBusiness, savedPostIds, onSaveChange }) {
+  const [posts, setPosts] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+
+  async function loadExplore() {
+    setIsLoading(true)
+    setLoadError(false)
+    try {
+      const response = await fetch(`${API_URL}/discover/explore`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!response.ok) throw new Error('Unable to load explore feed')
+      setPosts(await response.json())
+    } catch {
+      setLoadError(true)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadExplore()
+  }, [token])
+
+  return (
+    <section className="post-flow">
+      <p className="eyebrow">Localyze / Explore</p>
+      <h1>Discover what’s near you.</h1>
+      <p className="dashboard-intro">Posts from businesses that match your city and interests, whether you follow them yet or not.</p>
+      {isLoading ? (
+        <div className="loading-state">Finding posts near you...</div>
+      ) : loadError ? (
+        <div className="empty-state"><Sparkles size={24} /><p>We couldn’t load Explore. Check your connection and try again.</p><button className="primary-button" onClick={loadExplore}>Retry</button></div>
+      ) : posts.length === 0 ? (
+        <div className="empty-state"><Compass size={24} /><p>Nothing to discover yet. Add interests to your profile to see more here.</p></div>
+      ) : posts.map((post) => (
+        <PostCard
+          post={post}
+          token={token}
+          userId={userId}
+          onSelectBusiness={onSelectBusiness}
+          initialSaved={savedPostIds.has(post._id)}
+          onSaveChange={onSaveChange}
+          key={post._id}
+        />
+      ))}
+    </section>
+  )
+}
+
+function SavedPage({ token, userId, onSelectBusiness, savedPostIds, onSaveChange }) {
+  const [posts, setPosts] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+
+  async function loadSaved() {
+    setIsLoading(true)
+    setLoadError(false)
+    try {
+      const response = await fetch(`${API_URL}/saved`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!response.ok) throw new Error('Unable to load saved posts')
+      setPosts(await response.json())
+    } catch {
+      setLoadError(true)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSaved()
+  }, [token])
+
+  function handleChange(postId, isSaved) {
+    onSaveChange(postId, isSaved)
+    if (!isSaved) setPosts((previous) => previous.filter((post) => post._id !== postId))
+  }
+
+  return (
+    <section className="post-flow">
+      <p className="eyebrow">Localyze / Saved</p>
+      <h1>Your saved posts.</h1>
+      <p className="dashboard-intro">Posts you’ve bookmarked, kept in one place.</p>
+      {isLoading ? (
+        <div className="loading-state">Loading your saved posts...</div>
+      ) : loadError ? (
+        <div className="empty-state"><Bookmark size={24} /><p>We couldn’t load your saved posts. Check your connection and try again.</p><button className="primary-button" onClick={loadSaved}>Retry</button></div>
+      ) : posts.length === 0 ? (
+        <div className="empty-state"><Bookmark size={24} /><p>Nothing saved yet. Tap the bookmark icon on a post to keep it here.</p></div>
+      ) : posts.map((post) => (
+        <PostCard
+          post={post}
+          token={token}
+          userId={userId}
+          onSelectBusiness={onSelectBusiness}
+          initialSaved={savedPostIds.has(post._id)}
+          onSaveChange={handleChange}
+          key={post._id}
+        />
+      ))}
+    </section>
+  )
 }
 
 function FollowButton({ token, businessId, initialFollowing = false, onChange }) {
@@ -1024,8 +1187,10 @@ function AuthPage({ onAuthenticated }) {
 function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('localyze_token'))
   const [activePage, setActivePage] = useState('Home')
-  const [posts, setPosts] = useState(demoPosts)
+  const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [savedPostIds, setSavedPostIds] = useState(() => new Set())
   const [showMenu, setShowMenu] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef(null)
@@ -1047,32 +1212,49 @@ function App() {
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
   }, [showSettings])
 
-  useEffect(() => {
-    async function loadPosts() {
-      const token = localStorage.getItem('localyze_token')
-      if (!token) {
-        setIsLoading(false)
+  async function loadPosts() {
+    const token = localStorage.getItem('localyze_token')
+    if (!token) {
+      setIsLoading(false)
+      return
+    }
+    setIsLoading(true)
+    setLoadError(false)
+    try {
+      const response = await fetch(`${API_URL}/${isBusiness ? 'posts/feed' : 'discover/posts'}`, { headers: { Authorization: `Bearer ${token}` } })
+      if (response.status === 401) {
+        onLogout()
         return
       }
-      setIsLoading(true)
-      try {
-        const response = await fetch(`${API_URL}/${isBusiness ? 'posts/feed' : 'discover/posts'}`, { headers: { Authorization: `Bearer ${token}` } })
-        if (response.status === 401) {
-          onLogout()
-          return
-        }
-        if (response.ok) {
-          const data = await response.json()
-          setPosts(isBusiness ? (data.length ? data : demoPosts) : data)
-        }
-      } catch {
-        // Demo content keeps the UI useful while the API is offline.
-      } finally {
-        setIsLoading(false)
-      }
+      if (!response.ok) throw new Error('Unable to load feed')
+      setPosts(await response.json())
+    } catch {
+      setLoadError(true)
+    } finally {
+      setIsLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadPosts()
   }, [authToken])
+
+  useEffect(() => {
+    if (!authToken || isBusiness) return
+    fetch(`${API_URL}/saved`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((response) => response.ok ? response.json() : [])
+      .then((saved) => setSavedPostIds(new Set(saved.map((post) => post._id))))
+      .catch(() => {})
+  }, [authToken, isBusiness])
+
+  function handleSaveChange(postId, isSaved) {
+    setSavedPostIds((previous) => {
+      const next = new Set(previous)
+      if (isSaved) next.add(postId)
+      else next.delete(postId)
+      return next
+    })
+  }
 
   const activeItem = visibleNavItems.find((item) => item.label === activePage)
   const ActiveIcon = activeItem?.icon || Home
@@ -1112,9 +1294,23 @@ function App() {
               <StoriesRow token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} />
               {isLoading ? (
                 <div className="loading-state">Finding the latest local stories...</div>
+              ) : loadError ? (
+                <div className="empty-state"><Sparkles size={24} /><p>We couldn’t load your feed. Check your connection and try again.</p><button className="primary-button" onClick={loadPosts}>Retry</button></div>
               ) : !isBusiness && posts.length === 0 ? (
                 <div className="empty-state"><Sparkles size={24} /><p>Follow more businesses to see their posts here.</p><button className="primary-button" onClick={() => setActivePage('Search')}>Find businesses to follow</button></div>
-              ) : posts.map((post) => <PostCard post={post} token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} key={post._id} />)}
+              ) : isBusiness && posts.length === 0 ? (
+                <div className="empty-state"><Sparkles size={24} /><p>No posts from your connections yet.</p></div>
+              ) : posts.map((post) => (
+                <PostCard
+                  post={post}
+                  token={authToken}
+                  userId={userId}
+                  onSelectBusiness={setViewingBusinessId}
+                  initialSaved={savedPostIds.has(post._id)}
+                  onSaveChange={handleSaveChange}
+                  key={post._id}
+                />
+              ))}
             </section>
             <aside className="right-rail">{isBusiness ? (
               <><div className="suggestion-header"><strong>Grow your network</strong></div><p className="dashboard-intro">Visit another business's profile from a post in your feed to connect or request a collaboration.</p></>
@@ -1122,7 +1318,7 @@ function App() {
               <><AccountSummary token={authToken} isBusiness={isBusiness} /><div className="suggestion-header"><strong>Businesses to follow</strong></div><SuggestedBusinesses token={authToken} onSelectBusiness={setViewingBusinessId} /></>
             )}<p className="rail-footer">About · Help · Press · API · Jobs · Privacy<br />© 2026 LOCALYZE</p></aside>
           </div>
-        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} /> : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={setViewingBusinessId} /> : <ProfilePage token={authToken} onExplore={() => setActivePage('Home')} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
+        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} /> : activePage === 'Explore' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <ExplorePage token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Saved' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <SavedPage token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={setViewingBusinessId} /> : <ProfilePage token={authToken} onExplore={() => setActivePage('Home')} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
       </main>
     </div>
   )

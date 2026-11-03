@@ -1,6 +1,7 @@
 const Post = require('../models/Post');
 const Follow = require('../models/Follow');
 const Connection = require('../models/Connection');
+const { visibleNowFilter } = require('../utils/postVisibility');
 
 const getStories = async (req, res) => {
   try {
@@ -31,7 +32,7 @@ const getStories = async (req, res) => {
       business: { $in: businessIds },
       visibility,
       status: 'active',
-      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+      ...visibleNowFilter(),
     })
       .populate('business', 'businessName logoUrl industry')
       .sort({ createdAt: -1 })
