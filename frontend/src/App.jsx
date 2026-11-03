@@ -11,7 +11,6 @@ import {
   LogOut,
   Menu,
   MessageCircle,
-  MoreHorizontal,
   PlusSquare,
   Search,
   Send,
@@ -19,6 +18,7 @@ import {
   Sparkles,
   Trash2,
   UserRound,
+  X,
 } from 'lucide-react'
 
 const API_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
@@ -114,7 +114,7 @@ async function uploadImageFile(token, file, type = 'post') {
   return { url: data.url, publicId: data.publicId }
 }
 
-function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false, onSaveChange }) {
+function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false, onSaveChange, onLikeChange }) {
   const isRealPost = typeof post._id === 'string' && !post._id.startsWith('demo-')
   const [liked, setLiked] = useState(() => Boolean(userId && (post.likes?.includes(userId) || post.businessLikes?.includes(userId))))
   const [likeCount, setLikeCount] = useState((post.likes?.length || 0) + (post.businessLikes?.length || 0))
@@ -124,11 +124,44 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
   const [showComments, setShowComments] = useState(false)
   const [comments, setComments] = useState([])
   const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [commentsError, setCommentsError] = useState(false)
+  const [latestComment, setLatestComment] = useState(null)
+  const [previewError, setPreviewError] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [commentSubmitError, setCommentSubmitError] = useState('')
+  const commentsDialogRef = useRef(null)
   const businessName = post.business?.businessName || 'Localyze member'
 
   useEffect(() => setSaved(initialSaved), [initialSaved])
+
+  useEffect(() => {
+    if (!isRealPost || !token) return undefined
+
+    let cancelled = false
+    fetch(`${API_URL}/posts/${post._id}/comments?limit=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error('Unable to load comment preview')
+        return response.json()
+      })
+      .then((data) => {
+        if (!cancelled) setLatestComment(data[0] || null)
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewError(true)
+      })
+
+    return () => { cancelled = true }
+  }, [isRealPost, post._id, token])
+
+  useEffect(() => {
+    const dialog = commentsDialogRef.current
+    if (!dialog) return
+    if (showComments && !dialog.open) dialog.showModal()
+    if (!showComments && dialog.open) dialog.close()
+  }, [showComments])
 
   async function toggleLike() {
     if (!isRealPost || !token || isLiking) return
@@ -146,6 +179,7 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
       const data = await response.json()
       setLiked(data.liked)
       setLikeCount(data.likes)
+      onLikeChange?.(post._id, data.liked, post)
     } catch {
       setLiked(previousLiked)
       setLikeCount(previousCount)
@@ -165,7 +199,7 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!response.ok && response.status !== 409) throw new Error('Unable to update saved post')
-      onSaveChange?.(post._id, next)
+      onSaveChange?.(post._id, next, post)
     } catch {
       setSaved(!next)
     } finally {
@@ -173,17 +207,24 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
     }
   }
 
-  async function toggleComments() {
-    const opening = !showComments
-    setShowComments(opening)
-    if (opening && isRealPost && comments.length === 0) {
-      setIsLoadingComments(true)
-      try {
-        const response = await fetch(`${API_URL}/posts/${post._id}/comments`, { headers: { Authorization: `Bearer ${token}` } })
-        if (response.ok) setComments(await response.json())
-      } finally {
-        setIsLoadingComments(false)
-      }
+  async function openComments() {
+    setShowComments(true)
+    if (!isRealPost) return
+
+    setIsLoadingComments(true)
+    setCommentsError(false)
+    try {
+      const response = await fetch(`${API_URL}/posts/${post._id}/comments`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error('Unable to load comments')
+      const data = await response.json()
+      setComments(data)
+      setLatestComment(data[data.length - 1] || null)
+    } catch {
+      setCommentsError(true)
+    } finally {
+      setIsLoadingComments(false)
     }
   }
 
@@ -191,6 +232,7 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
     event.preventDefault()
     if (!isRealPost || !token || !commentText.trim() || isSubmittingComment) return
     setIsSubmittingComment(true)
+    setCommentSubmitError('')
     try {
       const response = await fetch(`${API_URL}/posts/${post._id}/comments`, {
         method: 'POST',
@@ -200,12 +242,31 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
       if (!response.ok) throw new Error('Unable to post comment')
       const comment = await response.json()
       setComments((previous) => [...previous, comment])
+      setLatestComment(comment)
       setCommentText('')
-    } catch {
-      // Leave the draft in place so the user can retry.
+    } catch (error) {
+      setCommentSubmitError(error.message)
     } finally {
       setIsSubmittingComment(false)
     }
+  }
+
+  function renderCommentAuthor(comment) {
+    const isBusinessComment = Boolean(comment.business)
+    const authorName = isBusinessComment
+      ? comment.business?.businessName || 'A business'
+      : comment.user?.name || comment.user?.username || 'Someone'
+
+    return (
+      <>
+        <strong>{authorName}</strong>
+        {isBusinessComment && (
+          <span className="comment-business-badge" title="Business account" aria-label="Business account">
+            <Building2 size={11} strokeWidth={2.5} />
+          </span>
+        )}
+      </>
+    )
   }
 
   return (
@@ -220,65 +281,97 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
           )}
           <span>{post.business?.industry || 'Independent business'}</span>
         </div>
-        <button className="icon-button post-menu" aria-label="More post options"><MoreHorizontal size={19} /></button>
+        <time className="post-header-date">{formatDate(post.createdAt)}</time>
       </header>
-      {post.imageUrl ? <img className="post-image" src={post.imageUrl} alt={post.title} loading="lazy" decoding="async" /> : <div className="post-image post-image-empty"><Sparkles size={28} /><span>New from {businessName}</span></div>}
+      {post.imageUrl ? (
+        <img className="post-image" src={post.imageUrl} alt={post.title} loading="lazy" decoding="async" />
+      ) : (
+        <div className="post-image post-image-empty"><Sparkles size={28} /><span>New from {businessName}</span></div>
+      )}
       <div className="post-actions">
         <div className="action-group">
-          <button className={`icon-button ${liked ? 'is-liked' : ''}`} onClick={toggleLike} aria-label="Like post"><Heart size={22} fill={liked ? 'currentColor' : 'none'} /></button>
-          <button className="icon-button" onClick={toggleComments} aria-label="Comment on post"><MessageCircle size={22} /></button>
+          <button className={`icon-button ${liked ? 'is-liked' : ''}`} onClick={toggleLike} aria-label={liked ? 'Unlike post' : 'Like post'} disabled={isLiking}><Heart size={21} fill={liked ? 'currentColor' : 'none'} /></button>
+          <button className="icon-button" onClick={openComments} aria-label="View comments"><MessageCircle size={21} /></button>
         </div>
-        <button className={`icon-button ${saved ? 'is-saved' : ''}`} onClick={toggleSave} aria-label="Save post"><Bookmark size={22} fill={saved ? 'currentColor' : 'none'} /></button>
+        <button className={`icon-button ${saved ? 'is-saved' : ''}`} onClick={toggleSave} aria-label={saved ? 'Remove saved post' : 'Save post'} disabled={isSaving}><Bookmark size={21} fill={saved ? 'currentColor' : 'none'} /></button>
       </div>
       <div className="post-copy">
-        <span className={`post-type post-type-${post.postType || 'offer'}`}>{post.postType || 'offer'}</span>
-        {post.postType === 'offer' && post.expiresAt && <Countdown targetDate={post.expiresAt} />}
-        <strong>{likeCount} likes</strong>
-        <p><strong>{businessName}</strong> {post.content}</p>
+        <div className="post-meta">
+          <span className={`post-type post-type-${post.postType || 'offer'}`}>{post.postType || 'offer'}</span>
+          {post.postType === 'offer' && post.expiresAt && <Countdown targetDate={post.expiresAt} compact />}
+        </div>
         <h2>{post.title}</h2>
+        <p><strong>{businessName}</strong> {post.content}</p>
         <div className="tag-row">{(post.tags || []).map((tag) => <span key={tag}>#{tag}</span>)}</div>
-        <time>{formatDate(post.createdAt)}</time>
+        <button className="post-like-count" onClick={toggleLike} disabled={isLiking}>{likeCount} {likeCount === 1 ? 'like' : 'likes'}</button>
       </div>
-      {showComments && (
-        <div className="comments-section">
+      <button className="comment-preview" onClick={openComments} aria-label="Open post comments">
+        {latestComment ? (
+          <>
+            <span className="comment-preview-content">{renderCommentAuthor(latestComment)}{' '}{latestComment.content}</span>
+            <span className="comment-preview-link">View comments</span>
+          </>
+        ) : previewError ? (
+          <span className="comment-preview-muted">Comments unavailable</span>
+        ) : (
+          <span className="comment-preview-muted">Be the first to comment</span>
+        )}
+      </button>
+      <dialog
+        ref={commentsDialogRef}
+        className="comments-dialog"
+        aria-labelledby={`comments-title-${post._id}`}
+        onClose={() => setShowComments(false)}
+        onClick={(event) => {
+          if (event.target === commentsDialogRef.current) commentsDialogRef.current.close()
+        }}
+      >
+        <header className="comments-dialog-header">
+          <div>
+            <p className="eyebrow">Conversation</p>
+            <h2 id={`comments-title-${post._id}`}>Comments</h2>
+          </div>
+          <button className="icon-button comments-dialog-close" onClick={() => commentsDialogRef.current?.close()} aria-label="Close comments">
+            <X size={21} />
+          </button>
+        </header>
+        <div className="comments-post-context">
+          <strong>{post.title}</strong>
+          <p>{post.content}</p>
+        </div>
+        <div className="comments-dialog-list">
           {isLoadingComments ? (
-            <p className="dashboard-intro">Loading comments...</p>
+            <div className="loading-state">Loading comments...</div>
+          ) : commentsError ? (
+            <div className="empty-state"><p>We couldn’t load the comments.</p><button className="primary-button" onClick={openComments}>Try again</button></div>
           ) : comments.length === 0 ? (
-            <p className="dashboard-intro">No comments yet.</p>
+            <div className="empty-state"><MessageCircle size={22} /><p>No comments yet. Start the conversation.</p></div>
           ) : (
             <ul className="comment-list">
-              {comments.map((comment) => {
-                const isBusinessComment = Boolean(comment.business)
-                const authorName = isBusinessComment
-                  ? comment.business?.businessName || 'A business'
-                  : comment.user?.name || comment.user?.username || 'Someone'
-                return (
-                  <li key={comment._id}>
-                    <strong>{authorName}</strong>
-                    {isBusinessComment && (
-                      <span className="comment-business-badge" title="Business account" aria-label="Business account">
-                        <Building2 size={11} strokeWidth={2.5} />
-                      </span>
-                    )}
-                    {' '}{comment.content}
-                  </li>
-                )
-              })}
+              {comments.map((comment) => (
+                <li key={comment._id}>
+                  <div className="comment-author">{renderCommentAuthor(comment)}</div>
+                  <p>{comment.content}</p>
+                  <time>{formatDate(comment.createdAt)}</time>
+                </li>
+              ))}
             </ul>
           )}
-          {isRealPost && (
-            <form className="comment-form" onSubmit={submitComment}>
-              <input
-                aria-label="Add a comment"
-                placeholder="Add a comment..."
-                value={commentText}
-                onChange={(event) => setCommentText(event.target.value)}
-              />
-              <button type="submit" disabled={isSubmittingComment || !commentText.trim()}>Post</button>
-            </form>
-          )}
         </div>
-      )}
+        {isRealPost && (
+          <form className="comment-form comments-dialog-form" onSubmit={submitComment}>
+            <input
+              aria-label="Add a comment"
+              placeholder="Write a comment..."
+              value={commentText}
+              onChange={(event) => setCommentText(event.target.value)}
+              maxLength={500}
+            />
+            <button type="submit" disabled={isSubmittingComment || !commentText.trim()}>{isSubmittingComment ? 'Posting...' : 'Post'}</button>
+            {commentSubmitError && <p className="auth-message">{commentSubmitError}</p>}
+          </form>
+        )}
+      </dialog>
     </article>
   )
 }
@@ -552,11 +645,19 @@ function StoriesRow({ token, isBusiness, onSelectBusiness }) {
   return <div className="story-row">{isLoading ? <div className="story-loading">Loading stories...</div> : stories.length ? stories.map((post) => <button className="story" key={post._id} onClick={() => onSelectBusiness(post.business._id)}><div className="story-ring story-gradient"><Avatar name={post.business.businessName} src={post.business.logoUrl} /></div><span>{post.business.businessName}</span></button>) : <div className="story-empty">{isBusiness ? 'Connect with businesses to see their stories.' : 'Follow businesses to see their stories.'}</div>}</div>
 }
 
-function ProfilePage({ token, onExplore }) {
+function ProfilePage({ token, userId, onExplore, onSelectBusiness, savedPostIds, onSaveChange }) {
   const [profile, setProfile] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [following, setFollowing] = useState([])
   const [isLoadingFollowing, setIsLoadingFollowing] = useState(true)
+  const [savedPosts, setSavedPosts] = useState([])
+  const [likedPosts, setLikedPosts] = useState([])
+  const [isLoadingSaved, setIsLoadingSaved] = useState(true)
+  const [isLoadingLiked, setIsLoadingLiked] = useState(true)
+  const [collectionError, setCollectionError] = useState('')
+  const [viewMode, setViewMode] = useState('posts')
+  const [activeTab, setActiveTab] = useState('saved')
+  const [collectionsVersion, setCollectionsVersion] = useState(0)
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({ username: '', bio: '', interests: '', city: '' })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
@@ -570,12 +671,56 @@ function ProfilePage({ token, onExplore }) {
       .finally(() => setIsLoading(false))
   }, [token])
 
+  function handleProfileSaveChange(postId, isSaved, post) {
+    onSaveChange(postId, isSaved)
+    setSavedPosts((previous) => {
+      if (!isSaved) return previous.filter((savedPost) => savedPost._id !== postId)
+      return previous.some((savedPost) => savedPost._id === postId) ? previous : [...previous, post]
+    })
+  }
+
+  function handleProfileLikeChange(postId, isLiked, post) {
+    setLikedPosts((previous) => {
+      if (!isLiked) return previous.filter((likedPost) => likedPost._id !== postId)
+      return previous.some((likedPost) => likedPost._id === postId) ? previous : [...previous, post]
+    })
+  }
+
+  function selectPostTab(tab) {
+    setActiveTab(tab)
+    setViewMode('posts')
+  }
+
   useEffect(() => {
     fetch(`${API_URL}/follows`, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.ok ? response.json() : [])
       .then(setFollowing)
       .finally(() => setIsLoadingFollowing(false))
   }, [token])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProfilePosts(path, setPosts, setIsLoading) {
+      try {
+        const response = await fetch(`${API_URL}${path}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!response.ok) throw new Error('Unable to load profile posts')
+        const posts = await response.json()
+        if (!cancelled) setPosts(posts)
+      } catch {
+        if (!cancelled) setCollectionError('We couldn’t load your posts. Check your connection and try again.')
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    loadProfilePosts('/saved', setSavedPosts, setIsLoadingSaved)
+    loadProfilePosts('/posts/liked', setLikedPosts, setIsLoadingLiked)
+
+    return () => { cancelled = true }
+  }, [token, collectionsVersion])
 
   function startEditing() {
     setEditForm({ username: profile.username || '', bio: profile.bio || '', interests: (profile.interests || []).join(', '), city: profile.city || '' })
@@ -632,9 +777,8 @@ function ProfilePage({ token, onExplore }) {
   const name = profile?.name || 'Your profile'
 
   return (
-    <section className="post-flow">
-      <p className="eyebrow">Localyze / Profile</p>
-      <h1>{name}</h1>
+    <section className="consumer-profile-page">
+      <p className="eyebrow">Localyze / Your profile</p>
       {isLoading ? <div className="loading-state">Loading your profile...</div> : !profile ? (
         <div className="empty-state"><UserRound size={24} /><p>We couldn’t load your profile right now.</p><button className="primary-button" onClick={onExplore}>Explore the feed</button></div>
       ) : (
@@ -645,7 +789,7 @@ function ProfilePage({ token, onExplore }) {
               <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handlePhotoUpload} disabled={isUploadingPhoto} />
               <span>{isUploadingPhoto ? 'Uploading...' : 'Change photo'}</span>
             </label>
-            <div><strong>{name}</strong>{profile.username && <span className="profile-handle">@{profile.username}</span>}<span>{profile.email}{profile.city ? ` · ${profile.city}` : ''}</span></div>
+            <div><strong>{name}</strong>{profile.username && <span className="profile-handle">@{profile.username}</span>}<span>{profile.city || 'Local community'}</span></div>
             {!isEditing && <button className="primary-button" onClick={startEditing}>Edit Profile</button>}
           </div>
           {isEditing ? (
@@ -661,14 +805,20 @@ function ProfilePage({ token, onExplore }) {
               </div>
             </form>
           ) : (
-            <div className="profile-section">
-              <p className="dashboard-intro">{profile.bio || 'No bio yet.'}</p>
-              <div className="tag-row">{(profile.interests || []).map((interest) => <span key={interest}>#{interest}</span>)}</div>
+            <div className="profile-section consumer-profile-bio">
+              <p>{profile.bio || 'Add a little about yourself so local businesses can get to know you.'}</p>
+              {(profile.interests || []).length > 0 && <div className="tag-row">{profile.interests.map((interest) => <span key={interest}>#{interest}</span>)}</div>}
             </div>
           )}
-          <div className="profile-section">
-            <div className="suggestion-header"><strong>Following ({following.length})</strong></div>
-            {isLoadingFollowing ? <div className="loading-state">Loading who you follow...</div> : following.length ? following.map((follow) => (
+          <div className="profile-stats">
+            <button onClick={() => setViewMode('following')}><strong>{following.length}</strong><span>Following</span></button>
+            <button onClick={() => selectPostTab('saved')}><strong>{savedPosts.length}</strong><span>Saved posts</span></button>
+            <button onClick={() => selectPostTab('liked')}><strong>{likedPosts.length}</strong><span>Liked posts</span></button>
+          </div>
+          {viewMode === 'following' ? (
+            <div className="profile-section">
+              <div className="suggestion-header"><strong>Businesses you follow</strong><button onClick={() => setViewMode('posts')}>Back to posts</button></div>
+              {isLoadingFollowing ? <div className="loading-state">Loading who you follow...</div> : following.length ? following.filter((follow) => follow.business).map((follow) => (
               <div className="suggestion" key={follow._id}>
                 <Avatar name={follow.business.businessName} src={follow.business.logoUrl} />
                 <div><strong>{follow.business.businessName}</strong><span>{follow.business.industry || 'Local business'}</span></div>
@@ -679,10 +829,47 @@ function ProfilePage({ token, onExplore }) {
                   onChange={(nowFollowing) => { if (!nowFollowing) setFollowing((prev) => prev.filter((item) => item._id !== follow._id)) }}
                 />
               </div>
-            )) : (
-              <div className="empty-state"><Sparkles size={24} /><p>You’re not following any businesses yet.</p><button className="primary-button" onClick={onExplore}>Explore the feed</button></div>
-            )}
-          </div>
+              )) : (
+                <div className="empty-state"><Sparkles size={24} /><p>You’re not following any businesses yet.</p><button className="primary-button" onClick={onExplore}>Explore businesses</button></div>
+              )}
+            </div>
+          ) : (
+            <div className="profile-section">
+              <div className="profile-tabs consumer-profile-tabs">
+                <button className={`profile-tab ${activeTab === 'saved' ? 'active' : ''}`} onClick={() => selectPostTab('saved')}>Saved posts <span>{savedPosts.length}</span></button>
+                <button className={`profile-tab ${activeTab === 'liked' ? 'active' : ''}`} onClick={() => selectPostTab('liked')}>Liked posts <span>{likedPosts.length}</span></button>
+              </div>
+              {collectionError ? (
+                <div className="empty-state"><Bookmark size={24} /><p>{collectionError}</p><button className="primary-button" onClick={() => { setCollectionError(''); setIsLoadingSaved(true); setIsLoadingLiked(true); setCollectionsVersion((version) => version + 1) }}>Retry</button></div>
+              ) : activeTab === 'saved' ? (
+                isLoadingSaved ? <div className="loading-state">Loading saved posts...</div> : savedPosts.length ? savedPosts.map((post) => (
+                  <PostCard
+                    key={post._id}
+                    post={post}
+                    token={token}
+                    userId={userId}
+                    onSelectBusiness={onSelectBusiness}
+                    initialSaved={savedPostIds.has(post._id)}
+                    onSaveChange={handleProfileSaveChange}
+                    onLikeChange={handleProfileLikeChange}
+                  />
+                )) : <div className="empty-state"><Bookmark size={24} /><p>No saved posts yet.</p><button className="primary-button" onClick={onExplore}>Explore posts</button></div>
+              ) : (
+                isLoadingLiked ? <div className="loading-state">Loading liked posts...</div> : likedPosts.length ? likedPosts.map((post) => (
+                  <PostCard
+                    key={post._id}
+                    post={post}
+                    token={token}
+                    userId={userId}
+                    onSelectBusiness={onSelectBusiness}
+                    initialSaved={savedPostIds.has(post._id)}
+                    onSaveChange={handleProfileSaveChange}
+                    onLikeChange={handleProfileLikeChange}
+                  />
+                )) : <div className="empty-state"><Heart size={24} /><p>Posts you like will appear here.</p><button className="primary-button" onClick={onExplore}>Explore posts</button></div>
+              )}
+            </div>
+          )}
         </>
       )}
     </section>
@@ -1332,7 +1519,7 @@ function App() {
               <><AccountSummary token={authToken} isBusiness={isBusiness} /><div className="suggestion-header"><strong>Businesses to follow</strong></div><SuggestedBusinesses token={authToken} onSelectBusiness={setViewingBusinessId} /></>
             )}<p className="rail-footer">About · Help · Press · API · Jobs · Privacy<br />© 2026 LOCALYZE</p></aside>
           </div>
-        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} /> : activePage === 'Explore' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <ExplorePage token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Saved' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <SavedPage token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={setViewingBusinessId} /> : <ProfilePage token={authToken} onExplore={() => setActivePage('Home')} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
+        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} /> : activePage === 'Explore' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <ExplorePage token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Saved' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <SavedPage token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={setViewingBusinessId} /> : <ProfilePage token={authToken} userId={userId} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
       </main>
     </div>
   )

@@ -1,18 +1,20 @@
 const Comment = require('../models/Comment');
 const Post = require('../models/Post');
 
-// @desc    List comments on a post, oldest first
+// @desc    List comments on a post, oldest first (or return the latest with ?limit=1)
 // @route   GET /api/posts/:id/comments
 const getComments = async (req, res) => {
   try {
     const post = await Post.findOne({ _id: req.params.id, status: 'active' }).select('_id');
     if (!post) return res.status(404).json({ message: 'Post not found' });
 
+    const preview = req.query.limit === '1';
     const comments = await Comment.find({ post: req.params.id })
       .populate('user', 'name username')
       .populate('business', 'businessName username logoUrl')
-      .sort({ createdAt: 1 });
-    res.json(comments);
+      .sort(preview ? { createdAt: -1, _id: -1 } : { createdAt: 1, _id: 1 })
+      .limit(preview ? 1 : 0);
+    res.json(preview ? comments.reverse() : comments);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

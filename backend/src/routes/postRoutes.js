@@ -4,6 +4,7 @@ const {
   createPost,
   getMyPosts,
   getPostById,
+  getLikedPosts,
   updatePost,
   deletePost,
   toggleLikePost,
@@ -16,6 +17,7 @@ const { protect, requireRole } = require('../middleware/authMiddleware');
 router.post('/', protect, requireRole('business'), createPost);
 router.get('/mine', protect, requireRole('business'), getMyPosts);
 router.get('/feed', protect, requireRole('business'), getConnectionsFeed);
+router.get('/liked', protect, requireRole('user'), getLikedPosts);
 router.put('/:id', protect, requireRole('business'), updatePost);
 router.delete('/:id', protect, requireRole('business'), deletePost);
 

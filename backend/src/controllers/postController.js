@@ -87,6 +87,24 @@ const getPostById = async (req, res) => {
   }
 };
 
+// @desc    List active posts liked by the logged-in consumer
+// @route   GET /api/posts/liked
+const getLikedPosts = async (req, res) => {
+  try {
+    const posts = await Post.find({
+      likes: req.user._id,
+      status: 'active',
+      visibility: { $in: ['consumers_and_businesses', null] },
+    })
+      .populate('business', 'businessName logoUrl industry')
+      .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Update a post (business only, must be owner)
 // @route   PUT /api/posts/:id
 const updatePost = async (req, res) => {
@@ -228,4 +246,4 @@ const getConnectionsFeed = async (req, res) => {
   }
 };
 
-module.exports = { createPost, getMyPosts, getPostById, updatePost, deletePost, toggleLikePost, getConnectionsFeed };
+module.exports = { createPost, getMyPosts, getPostById, getLikedPosts, updatePost, deletePost, toggleLikePost, getConnectionsFeed };

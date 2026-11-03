@@ -1,6 +1,7 @@
 const request = require('supertest');
 const app = require('../app');
 const Post = require('../models/Post');
+const Comment = require('../models/Comment');
 const { setupTestDb } = require('./testDb');
 const { createUser, createBusiness } = require('./fixtures');
 
@@ -47,5 +48,25 @@ describe('comments', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ content: 'Nice' });
     expect(response.status).toBe(404);
+  });
+
+  test('returns only the latest comment when requesting a preview', async () => {
+    const { user, token } = await createUser();
+    const { business } = await createBusiness();
+    const post = await Post.create({ business: business._id, postType: 'promotion', title: 'Hello', content: 'x' });
+    const older = new Date('2026-01-01T10:00:00.000Z');
+    const newer = new Date('2026-01-02T10:00:00.000Z');
+    await Comment.create([
+      { post: post._id, user: user._id, content: 'Earlier comment', createdAt: older, updatedAt: older },
+      { post: post._id, user: user._id, content: 'Latest comment', createdAt: newer, updatedAt: newer },
+    ]);
+
+    const preview = await request(app)
+      .get(`/api/posts/${post._id}/comments?limit=1`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(preview.status).toBe(200);
+    expect(preview.body).toHaveLength(1);
+    expect(preview.body[0].content).toBe('Latest comment');
   });
 });
