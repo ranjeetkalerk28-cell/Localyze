@@ -937,6 +937,8 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
   const [activeTab, setActiveTab] = useState('collaboration')
   const [posts, setPosts] = useState([])
   const [isLoadingPosts, setIsLoadingPosts] = useState(true)
+  const [selectedPost, setSelectedPost] = useState(null)
+  const postDialogRef = useRef(null)
   const [followers, setFollowers] = useState([])
   const [isLoadingFollowers, setIsLoadingFollowers] = useState(false)
   const [connections, setConnections] = useState([])
@@ -951,6 +953,13 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const isOwnProfile = viewerId === businessId
+
+  useEffect(() => {
+    const dialog = postDialogRef.current
+    if (!dialog) return
+    if (selectedPost && !dialog.open) dialog.showModal()
+    if (!selectedPost && dialog.open) dialog.close()
+  }, [selectedPost])
 
   useEffect(() => {
     setIsLoading(true)
@@ -1071,6 +1080,10 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
     if (response.ok) setPosts((previous) => previous.filter((post) => post._id !== postId))
   }
 
+  function closePostDialog() {
+    setSelectedPost(null)
+  }
+
   return (
     <section className="business-profile-page">
       <p className="eyebrow">Localyze / Business profile</p>
@@ -1145,11 +1158,13 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
                 <div className="profile-post-grid">
                   {posts.map((post) => (
                     <article className="profile-post-card" key={post._id}>
+                      <button className="profile-post-open" onClick={() => setSelectedPost(post)} aria-label={`Open post: ${post.title}`}>
+                        {post.imageUrl ? <img src={post.imageUrl} alt="" loading="lazy" /> : <div className="profile-post-card-empty"><Sparkles size={20} /></div>}
+                        {post.postType === 'offer' && post.expiresAt && <Countdown targetDate={post.expiresAt} compact />}
+                        <strong>{post.title}</strong>
+                        <span>{post.content}</span>
+                      </button>
                       {isOwnProfile && <button className="profile-post-delete" aria-label="Delete post" onClick={() => deletePost(post._id)}><Trash2 size={14} /></button>}
-                      {post.imageUrl ? <img src={post.imageUrl} alt={post.title} /> : <div className="profile-post-card-empty"><Sparkles size={20} /></div>}
-                      {post.postType === 'offer' && post.expiresAt && <Countdown targetDate={post.expiresAt} compact />}
-                      <strong>{post.title}</strong>
-                      <span>{post.content}</span>
                     </article>
                   ))}
                 </div>
@@ -1171,6 +1186,29 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
           )}
         </>
       )}
+      <dialog
+        ref={postDialogRef}
+        className="business-post-dialog"
+        aria-label={selectedPost ? `Post: ${selectedPost.title}` : 'Business post'}
+        onClose={closePostDialog}
+        onClick={(event) => {
+          if (event.target === postDialogRef.current) postDialogRef.current.close()
+        }}
+      >
+        {selectedPost && (
+          <>
+            <button className="icon-button business-post-dialog-close" onClick={() => postDialogRef.current?.close()} aria-label="Close post">
+              <X size={21} />
+            </button>
+            <PostCard
+              post={selectedPost}
+              token={token}
+              userId={viewerId}
+              onSelectBusiness={() => {}}
+            />
+          </>
+        )}
+      </dialog>
     </section>
   )
 }
