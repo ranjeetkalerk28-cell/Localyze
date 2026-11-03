@@ -308,7 +308,7 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 - Backend has a Jest/Supertest/mongodb-memory-server suite (added 2026-11-03) covering offer-date enforcement, Explore, Saved, Comments, and cross-role likes/comments; coverage elsewhere (auth, follows, collaborations, connections, uploads, business profile, etc.) is still untested. No frontend test suite exists.
 - Saved posts remain consumer-only (not extended to businesses alongside likes/comments on 2026-11-03) — not asked for; revisit if business accounts should be able to bookmark posts too.
 - The backend uses broad CORS configuration and should be restricted for production deployment.
-- Git repository is active on branch `main` with remote `origin` configured as `https://github.com/ranjeetkalerk28-cell/localyze-review-1.git`; the latest verified checkpoint is commit `6d35826` (Phase 1 of the upgrade plan, pushed 2026-11-03).
+- Git repository is active on branch `main` with remote `origin` configured as `https://github.com/ranjeetkalerk28-cell/localyze-review-1.git`; the latest verified checkpoint is commit `dd90504` (business likes/comments, pushed 2026-11-03).
 
 ## Next Steps
 
