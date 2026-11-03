@@ -930,7 +930,7 @@ const profileTabs = [
   { key: 'offer', label: 'Offers' },
 ]
 
-function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, onSelectBusiness }) {
+function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, onSelectBusiness, onBack, backLabel }) {
   const [business, setBusiness] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [viewMode, setViewMode] = useState('posts')
@@ -1086,6 +1086,16 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
 
   return (
     <section className="business-profile-page">
+      {onBack && (
+        <button
+          className="business-profile-back"
+          onClick={onBack}
+          aria-label={backLabel || 'Go back'}
+          title={backLabel || 'Go back'}
+        >
+          <ArrowLeft size={20} />
+        </button>
+      )}
       <p className="eyebrow">Localyze / Business profile</p>
       {isLoading ? <div className="loading-state">Loading business profile...</div> : !business ? (
         <div className="empty-state"><Building2 size={24} /><p>We couldn’t load this business.</p></div>
@@ -1204,7 +1214,10 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
               post={selectedPost}
               token={token}
               userId={viewerId}
-              onSelectBusiness={() => {}}
+              onSelectBusiness={(id) => {
+                closePostDialog()
+                onSelectBusiness(id)
+              }}
             />
           </>
         )}
@@ -1434,11 +1447,30 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef(null)
   const [viewingBusinessId, setViewingBusinessId] = useState(null)
+  const [businessProfileHistory, setBusinessProfileHistory] = useState([])
   const isBusiness = getAccountRole() === 'business'
   const userId = decodeToken().id
   const visibleNavItems = navItems.filter((item) => !item.businessOnly || isBusiness)
   const onLogout = () => { localStorage.removeItem('localyze_token'); setAuthToken(null) }
-  const navigateTo = (label) => { setViewingBusinessId(null); setActivePage(label) }
+  const navigateTo = (label) => {
+    setViewingBusinessId(null)
+    setBusinessProfileHistory([])
+    setActivePage(label)
+  }
+  const openBusinessProfile = (businessId) => {
+    if (viewingBusinessId && viewingBusinessId !== businessId) {
+      setBusinessProfileHistory((history) => [...history, viewingBusinessId])
+    }
+    setViewingBusinessId(businessId)
+  }
+  const goBackFromBusinessProfile = () => {
+    if (businessProfileHistory.length === 0) {
+      setViewingBusinessId(null)
+      return
+    }
+    setViewingBusinessId(businessProfileHistory[businessProfileHistory.length - 1])
+    setBusinessProfileHistory((history) => history.slice(0, -1))
+  }
 
   useEffect(() => {
     if (!showSettings) return undefined
@@ -1525,12 +1557,12 @@ function App() {
       <main className="main-content">
         <div className="mobile-header"><button className="brand" onClick={() => navigateTo('Home')}><Camera size={25} /><span>localyze</span></button><button className="icon-button"><Heart size={22} /></button></div>
         {viewingBusinessId ? (
-          <BusinessProfilePage key={viewingBusinessId} businessId={viewingBusinessId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={setViewingBusinessId} />
+          <BusinessProfilePage key={viewingBusinessId} businessId={viewingBusinessId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={openBusinessProfile} onBack={goBackFromBusinessProfile} backLabel={`Back to ${businessProfileHistory.length ? 'business profile' : activePage}`} />
         ) : activePage === 'Home' ? (
           <div className="feed-layout">
             <section className="feed-column">
               <div className="feed-heading"><div><p className="eyebrow">{isBusiness ? 'Your network' : 'Your local signal'}</p><h1>{isBusiness ? 'Fresh from your connections' : 'Fresh from your people'}</h1></div><button className="filter-button"><Sparkles size={16} /> For you</button></div>
-              <StoriesRow token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} />
+              <StoriesRow token={authToken} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} />
               {isLoading ? (
                 <div className="loading-state">Finding the latest local stories...</div>
               ) : loadError ? (
@@ -1544,7 +1576,7 @@ function App() {
                   post={post}
                   token={authToken}
                   userId={userId}
-                  onSelectBusiness={setViewingBusinessId}
+                  onSelectBusiness={openBusinessProfile}
                   initialSaved={savedPostIds.has(post._id)}
                   onSaveChange={handleSaveChange}
                   key={post._id}
@@ -1554,10 +1586,10 @@ function App() {
             <aside className="right-rail">{isBusiness ? (
               <><div className="suggestion-header"><strong>Grow your network</strong></div><p className="dashboard-intro">Visit another business's profile from a post in your feed to connect or request a collaboration.</p></>
             ) : (
-              <><AccountSummary token={authToken} isBusiness={isBusiness} /><div className="suggestion-header"><strong>Businesses to follow</strong></div><SuggestedBusinesses token={authToken} onSelectBusiness={setViewingBusinessId} /></>
+              <><AccountSummary token={authToken} isBusiness={isBusiness} /><div className="suggestion-header"><strong>Businesses to follow</strong></div><SuggestedBusinesses token={authToken} onSelectBusiness={openBusinessProfile} /></>
             )}<p className="rail-footer">About · Help · Press · API · Jobs · Privacy<br />© 2026 LOCALYZE</p></aside>
           </div>
-        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={setViewingBusinessId} /> : activePage === 'Explore' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <ExplorePage token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Saved' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <SavedPage token={authToken} userId={userId} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} onSelectBusiness={setViewingBusinessId} /> : <ProfilePage token={authToken} userId={userId} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={setViewingBusinessId} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
+        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} /> : activePage === 'Explore' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <ExplorePage token={authToken} userId={userId} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Saved' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <SavedPage token={authToken} userId={userId} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} /> : <ProfilePage token={authToken} userId={userId} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
       </main>
     </div>
   )
