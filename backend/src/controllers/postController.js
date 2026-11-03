@@ -137,28 +137,39 @@ const deletePost = async (req, res) => {
   }
 };
 
-// @desc    Like / unlike a post (user only)
+// @desc    Like / unlike a post (consumer or business)
 // @route   PUT /api/posts/:id/like
 const toggleLikePost = async (req, res) => {
   try {
     const post = await Post.findOne({ _id: req.params.id, status: 'active' });
     if (!post) return res.status(404).json({ message: 'Post not found' });
 
-    const alreadyLiked = post.likes.includes(req.user._id);
+    const isBusiness = req.role === 'business';
+    const actorId = isBusiness ? req.business._id : req.user._id;
+    const likesField = isBusiness ? 'businessLikes' : 'likes';
+    const alreadyLiked = post[likesField].some((id) => id.toString() === actorId.toString());
+
     if (alreadyLiked) {
-      post.likes = post.likes.filter((id) => id.toString() !== req.user._id.toString());
+      post[likesField] = post[likesField].filter((id) => id.toString() !== actorId.toString());
     } else {
-      post.likes.push(req.user._id);
+      post[likesField].push(actorId);
     }
 
     await post.save();
-    await Activity.create({
-      user: req.user._id,
-      type: alreadyLiked ? 'unlike' : 'like',
-      business: post.business,
-      post: post._id,
-    });
-    res.json({ likes: post.likes.length, liked: !alreadyLiked });
+
+    // Activity is a consumer-only engagement log (groundwork for the future
+    // Explore ranking) -- a business liking a post has no actor field to
+    // record against, so it's intentionally not logged here.
+    if (!isBusiness) {
+      await Activity.create({
+        user: req.user._id,
+        type: alreadyLiked ? 'unlike' : 'like',
+        business: post.business,
+        post: post._id,
+      });
+    }
+
+    res.json({ likes: post.likes.length + post.businessLikes.length, liked: !alreadyLiked });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

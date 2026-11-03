@@ -116,8 +116,8 @@ async function uploadImageFile(token, file, type = 'post') {
 
 function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false, onSaveChange }) {
   const isRealPost = typeof post._id === 'string' && !post._id.startsWith('demo-')
-  const [liked, setLiked] = useState(() => Boolean(userId && post.likes?.includes(userId)))
-  const [likeCount, setLikeCount] = useState(post.likes?.length || 0)
+  const [liked, setLiked] = useState(() => Boolean(userId && (post.likes?.includes(userId) || post.businessLikes?.includes(userId))))
+  const [likeCount, setLikeCount] = useState((post.likes?.length || 0) + (post.businessLikes?.length || 0))
   const [saved, setSaved] = useState(initialSaved)
   const [isLiking, setIsLiking] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -247,9 +247,23 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
             <p className="dashboard-intro">No comments yet.</p>
           ) : (
             <ul className="comment-list">
-              {comments.map((comment) => (
-                <li key={comment._id}><strong>{comment.user?.name || comment.user?.username || 'Someone'}</strong> {comment.content}</li>
-              ))}
+              {comments.map((comment) => {
+                const isBusinessComment = Boolean(comment.business)
+                const authorName = isBusinessComment
+                  ? comment.business?.businessName || 'A business'
+                  : comment.user?.name || comment.user?.username || 'Someone'
+                return (
+                  <li key={comment._id}>
+                    <strong>{authorName}</strong>
+                    {isBusinessComment && (
+                      <span className="comment-business-badge" title="Business account" aria-label="Business account">
+                        <Building2 size={11} strokeWidth={2.5} />
+                      </span>
+                    )}
+                    {' '}{comment.content}
+                  </li>
+                )
+              })}
             </ul>
           )}
           {isRealPost && (

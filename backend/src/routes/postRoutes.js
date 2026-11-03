@@ -19,11 +19,9 @@ router.get('/feed', protect, requireRole('business'), getConnectionsFeed);
 router.put('/:id', protect, requireRole('business'), updatePost);
 router.delete('/:id', protect, requireRole('business'), deletePost);
 
-// User-only routes
-router.put('/:id/like', protect, requireRole('user'), toggleLikePost);
-router.post('/:id/comments', protect, requireRole('user'), addComment);
-
-// Shared (any logged-in account can view a single post or its comments)
+// Shared (any logged-in account can like/comment, view a single post, or read its comments)
+router.put('/:id/like', protect, toggleLikePost);
+router.post('/:id/comments', protect, addComment);
 router.get('/:id/comments', protect, getComments);
 router.get('/:id', protect, getPostById);
 

@@ -22,6 +22,7 @@ const postSchema = new mongoose.Schema(
       default: 'consumers_and_businesses',
     },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    businessLikes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Business' }],
     status: { type: String, enum: ['active', 'deleted'], default: 'active' },
     deletedAt: { type: Date, default: null },
   },

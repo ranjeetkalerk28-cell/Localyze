@@ -40,18 +40,6 @@ describe('comments', () => {
     expect(response.status).toBe(400);
   });
 
-  test('a business account cannot post a comment', async () => {
-    const { token } = await createBusiness();
-    const { business: author } = await createBusiness();
-    const post = await Post.create({ business: author._id, postType: 'promotion', title: 'Hello', content: 'x' });
-
-    const response = await request(app)
-      .post(`/api/posts/${post._id}/comments`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ content: 'Nice' });
-    expect(response.status).toBe(403);
-  });
-
   test('404s for a comment on a nonexistent post', async () => {
     const { token } = await createUser();
     const response = await request(app)
