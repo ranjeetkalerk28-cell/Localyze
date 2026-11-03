@@ -3,11 +3,12 @@ const router = express.Router();
 const { discoverPosts, discoverExplore, discoverBusinesses } = require('../controllers/discoverController');
 const { protect, requireRole } = require('../middleware/authMiddleware');
 
-// All discover routes are user-only
-router.use(protect, requireRole('user'));
+router.use(protect);
 
-router.get('/posts', discoverPosts);
 router.get('/explore', discoverExplore);
+
+router.use(requireRole('user'));
+router.get('/posts', discoverPosts);
 router.get('/businesses', discoverBusinesses);
 
 module.exports = router;

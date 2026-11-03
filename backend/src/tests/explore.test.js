@@ -53,4 +53,32 @@ describe('discover/explore', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual([]);
   });
+
+  test('businesses can explore relevant posts from other businesses, including business-only posts', async () => {
+    const { token, business: viewer } = await createBusiness({ city: 'Mumbai', industry: 'Design' });
+    const { business: localBusiness } = await createBusiness({ city: 'Mumbai', industry: 'Hospitality' });
+    const { business: industryBusiness } = await createBusiness({ city: 'Pune', industry: 'Design' });
+    const ownPost = await Post.create({
+      business: viewer._id, postType: 'promotion', title: 'My own post', content: 'x',
+    });
+    const localPost = await Post.create({
+      business: localBusiness._id, postType: 'promotion', title: 'Local post', content: 'x',
+      visibility: 'businesses_only',
+    });
+    const industryPost = await Post.create({
+      business: industryBusiness._id, postType: 'promotion', title: 'Industry post', content: 'x',
+    });
+
+    const response = await request(app)
+      .get('/api/discover/explore')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.map((post) => post._id)).toEqual(expect.arrayContaining([
+      industryPost._id.toString(),
+      localPost._id.toString(),
+    ]));
+    expect(response.body).toHaveLength(2);
+    expect(response.body.map((post) => post._id)).not.toContain(ownPost._id.toString());
+  });
 });

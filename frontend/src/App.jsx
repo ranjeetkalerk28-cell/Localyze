@@ -6,11 +6,13 @@ import {
   Camera,
   Compass,
   ArrowLeft,
+  ArrowRight,
   Heart,
   Home,
   LogOut,
   Menu,
   MessageCircle,
+  Pencil,
   PlusSquare,
   Search,
   Send,
@@ -51,6 +53,12 @@ function getAccountRole() {
 
 function formatDate(value) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value))
+}
+
+function dateInputValue(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
 }
 
 function getCountdownParts(targetDate) {
@@ -116,6 +124,7 @@ async function uploadImageFile(token, file, type = 'post') {
 
 function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false, onSaveChange, onLikeChange }) {
   const isRealPost = typeof post._id === 'string' && !post._id.startsWith('demo-')
+  const isBusinessAccount = getAccountRole() === 'business'
   const [liked, setLiked] = useState(() => Boolean(userId && (post.likes?.includes(userId) || post.businessLikes?.includes(userId))))
   const [likeCount, setLikeCount] = useState((post.likes?.length || 0) + (post.businessLikes?.length || 0))
   const [saved, setSaved] = useState(initialSaved)
@@ -290,10 +299,13 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
       )}
       <div className="post-actions">
         <div className="action-group">
-          <button className={`icon-button ${liked ? 'is-liked' : ''}`} onClick={toggleLike} aria-label={liked ? 'Unlike post' : 'Like post'} disabled={isLiking}><Heart size={21} fill={liked ? 'currentColor' : 'none'} /></button>
+          <div className="like-action">
+            <button className={`icon-button ${liked ? 'is-liked' : ''}`} onClick={toggleLike} aria-label={liked ? 'Unlike post' : 'Like post'} disabled={isLiking}><Heart size={21} fill={liked ? 'currentColor' : 'none'} /></button>
+            <button className="post-like-count" onClick={toggleLike} disabled={isLiking} aria-label={`${likeCount} likes`}>{likeCount}</button>
+          </div>
           <button className="icon-button" onClick={openComments} aria-label="View comments"><MessageCircle size={21} /></button>
         </div>
-        <button className={`icon-button ${saved ? 'is-saved' : ''}`} onClick={toggleSave} aria-label={saved ? 'Remove saved post' : 'Save post'} disabled={isSaving}><Bookmark size={21} fill={saved ? 'currentColor' : 'none'} /></button>
+        {!isBusinessAccount && <button className={`icon-button ${saved ? 'is-saved' : ''}`} onClick={toggleSave} aria-label={saved ? 'Remove saved post' : 'Save post'} disabled={isSaving}><Bookmark size={21} fill={saved ? 'currentColor' : 'none'} /></button>}
       </div>
       <div className="post-copy">
         <div className="post-meta">
@@ -303,7 +315,6 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
         <h2>{post.title}</h2>
         <p><strong>{businessName}</strong> {post.content}</p>
         <div className="tag-row">{(post.tags || []).map((tag) => <span key={tag}>#{tag}</span>)}</div>
-        <button className="post-like-count" onClick={toggleLike} disabled={isLiking}>{likeCount} {likeCount === 1 ? 'like' : 'likes'}</button>
       </div>
       <button className="comment-preview" onClick={openComments} aria-label="Open post comments">
         {latestComment ? (
@@ -468,40 +479,46 @@ function NotificationsPage({ token, isBusiness, onExplore }) {
   return <section className="notifications-page"><p className="eyebrow">Localyze / Notifications</p><h1>{isBusiness ? 'Connection requests' : 'Good things to know.'}</h1><p className="dashboard-intro">{isBusiness ? 'Businesses that want to connect with you.' : 'Offers and updates from businesses in your local signal.'}</p>{isLoading ? <div className="loading-state">{isBusiness ? 'Checking for requests...' : 'Checking for new offers...'}</div> : items.length ? <div className="notification-list">{isBusiness ? requests.map((request) => <article className="notification-item unread" key={request._id}><div className="notification-icon"><Briefcase size={18} /></div><div><strong>{request.requester?.businessName} wants to connect</strong><span>{request.requester?.industry || 'Local business'}</span></div><button className="primary-button" onClick={() => respond(request._id, 'accepted')}>Accept</button><button onClick={() => respond(request._id, 'rejected')}>Reject</button></article>) : notifications.map((notification) => <article className={`notification-item ${notification.read ? '' : 'unread'}`} key={notification._id}><div className="notification-icon"><Sparkles size={18} /></div><div><strong>{notification.message}</strong><span>{new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(notification.createdAt))}</span>{notification.post?.postType === 'offer' && notification.post?.expiresAt && <Countdown targetDate={notification.post.expiresAt} compact />}</div></article>)}</div> : <div className="empty-state"><Sparkles size={24} /><p>{isBusiness ? 'No connection requests yet.' : 'No offers yet. We’ll let you know when something good lands.'}</p><button className="primary-button" onClick={onExplore}>Explore the feed</button></div>}</section>
 }
 
-function ExplorePage({ token, userId, onSelectBusiness, savedPostIds, onSaveChange }) {
+function ExplorePage({ token, userId, isBusiness, onSelectBusiness, savedPostIds, onSaveChange }) {
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const loadRequestId = useRef(0)
 
   async function loadExplore() {
+    const requestId = ++loadRequestId.current
     setIsLoading(true)
     setLoadError(false)
     try {
       const response = await fetch(`${API_URL}/discover/explore`, { headers: { Authorization: `Bearer ${token}` } })
       if (!response.ok) throw new Error('Unable to load explore feed')
-      setPosts(await response.json())
+      const data = await response.json()
+      if (requestId === loadRequestId.current) setPosts(data)
     } catch {
-      setLoadError(true)
+      if (requestId === loadRequestId.current) setLoadError(true)
     } finally {
-      setIsLoading(false)
+      if (requestId === loadRequestId.current) setIsLoading(false)
     }
   }
 
   useEffect(() => {
     loadExplore()
+    return () => {
+      loadRequestId.current += 1
+    }
   }, [token])
 
   return (
     <section className="post-flow">
       <p className="eyebrow">Localyze / Explore</p>
       <h1>Discover what’s near you.</h1>
-      <p className="dashboard-intro">Posts from businesses that match your city and interests, whether you follow them yet or not.</p>
+      <p className="dashboard-intro">{isBusiness ? 'Discover nearby businesses and posts from others in your city or industry.' : 'Posts from businesses that match your city and interests, whether you follow them yet or not.'}</p>
       {isLoading ? (
         <div className="loading-state">Finding posts near you...</div>
       ) : loadError ? (
         <div className="empty-state"><Sparkles size={24} /><p>We couldn’t load Explore. Check your connection and try again.</p><button className="primary-button" onClick={loadExplore}>Retry</button></div>
       ) : posts.length === 0 ? (
-        <div className="empty-state"><Compass size={24} /><p>Nothing to discover yet. Add interests to your profile to see more here.</p></div>
+        <div className="empty-state"><Compass size={24} /><p>{isBusiness ? 'No nearby or industry-related business posts to discover yet.' : 'Nothing to discover yet. Add interests to your profile to see more here.'}</p></div>
       ) : posts.map((post) => (
         <PostCard
           post={post}
@@ -939,6 +956,12 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
   const [isLoadingPosts, setIsLoadingPosts] = useState(true)
   const [selectedPost, setSelectedPost] = useState(null)
   const postDialogRef = useRef(null)
+  const [editingPost, setEditingPost] = useState(null)
+  const [postEditForm, setPostEditForm] = useState(null)
+  const [postEditError, setPostEditError] = useState('')
+  const [isSavingPost, setIsSavingPost] = useState(false)
+  const [isUploadingPostImage, setIsUploadingPostImage] = useState(false)
+  const postEditDialogRef = useRef(null)
   const [followers, setFollowers] = useState([])
   const [isLoadingFollowers, setIsLoadingFollowers] = useState(false)
   const [connections, setConnections] = useState([])
@@ -960,6 +983,13 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
     if (selectedPost && !dialog.open) dialog.showModal()
     if (!selectedPost && dialog.open) dialog.close()
   }, [selectedPost])
+
+  useEffect(() => {
+    const dialog = postEditDialogRef.current
+    if (!dialog) return
+    if (editingPost && !dialog.open) dialog.showModal()
+    if (!editingPost && dialog.open) dialog.close()
+  }, [editingPost])
 
   useEffect(() => {
     setIsLoading(true)
@@ -1080,6 +1110,84 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
     if (response.ok) setPosts((previous) => previous.filter((post) => post._id !== postId))
   }
 
+  function startEditingPost(post) {
+    setPostEditForm({
+      title: post.title || '',
+      content: post.content || '',
+      imageUrl: post.imageUrl || '',
+      imagePublicId: post.imagePublicId || '',
+      tags: (post.tags || []).join(', '),
+      validFrom: dateInputValue(post.validFrom),
+      expiresAt: dateInputValue(post.expiresAt),
+      collaborationRequirements: post.collaborationRequirements || '',
+    })
+    setPostEditError('')
+    setEditingPost(post)
+  }
+
+  async function handlePostImageUpload(event) {
+    const file = event.target.files[0]
+    if (!file) return
+    setPostEditError('')
+    setIsUploadingPostImage(true)
+    try {
+      const { url, publicId } = await uploadImageFile(token, file, 'post')
+      setPostEditForm((previous) => ({ ...previous, imageUrl: url, imagePublicId: publicId }))
+    } catch (error) {
+      setPostEditError(error.message)
+    } finally {
+      setIsUploadingPostImage(false)
+      event.target.value = ''
+    }
+  }
+
+  async function savePostEdits(event) {
+    event.preventDefault()
+    if (!editingPost || !postEditForm || isSavingPost || isUploadingPostImage) return
+    setPostEditError('')
+
+    if (editingPost.postType === 'offer') {
+      if (!postEditForm.validFrom || !postEditForm.expiresAt) {
+        setPostEditError('Offers require both a valid-from and valid-until date.')
+        return
+      }
+      if (postEditForm.expiresAt <= postEditForm.validFrom) {
+        setPostEditError('The valid-until date must be after the valid-from date.')
+        return
+      }
+    }
+
+    setIsSavingPost(true)
+    try {
+      const response = await fetch(`${API_URL}/posts/${editingPost._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          title: postEditForm.title.trim(),
+          content: postEditForm.content.trim(),
+          imageUrl: postEditForm.imageUrl,
+          imagePublicId: postEditForm.imagePublicId,
+          tags: postEditForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+          validFrom: editingPost.postType === 'offer' ? postEditForm.validFrom : null,
+          expiresAt: postEditForm.expiresAt || null,
+          collaborationRequirements: editingPost.postType === 'collaboration'
+            ? postEditForm.collaborationRequirements.trim()
+            : '',
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || 'Unable to update post')
+      setPosts((previous) => previous.map((post) => post._id === data._id ? data : post))
+      setSelectedPost((previous) => previous?._id === data._id ? data : previous)
+      setEditingPost(null)
+      setPostEditForm(null)
+    } catch (error) {
+      setPostEditError(error.message)
+    } finally {
+      setIsSavingPost(false)
+    }
+  }
+
   function closePostDialog() {
     setSelectedPost(null)
   }
@@ -1174,7 +1282,12 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
                         <strong>{post.title}</strong>
                         <span>{post.content}</span>
                       </button>
-                      {isOwnProfile && <button className="profile-post-delete" aria-label="Delete post" onClick={() => deletePost(post._id)}><Trash2 size={14} /></button>}
+                      {isOwnProfile && (
+                        <div className="profile-post-management">
+                          <button className="profile-post-edit" aria-label={`Edit post: ${post.title}`} title="Edit post" onClick={() => startEditingPost(post)}><Pencil size={14} /></button>
+                          <button className="profile-post-delete" aria-label={`Delete post: ${post.title}`} title="Delete post" onClick={() => deletePost(post._id)}><Trash2 size={14} /></button>
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>
@@ -1219,6 +1332,61 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
                 onSelectBusiness(id)
               }}
             />
+          </>
+        )}
+      </dialog>
+      <dialog
+        ref={postEditDialogRef}
+        className="post-edit-dialog"
+        aria-labelledby="post-edit-title"
+        onClose={() => {
+          setEditingPost(null)
+          setPostEditForm(null)
+        }}
+        onCancel={(event) => {
+          if (isSavingPost) event.preventDefault()
+        }}
+        onClick={(event) => {
+          if (event.target === postEditDialogRef.current && !isSavingPost) postEditDialogRef.current.close()
+        }}
+      >
+        {editingPost && postEditForm && (
+          <>
+            <header className="post-edit-header">
+              <div>
+                <p className="eyebrow">Business studio / Edit post</p>
+                <h2 id="post-edit-title">Update your {editingPost.postType}</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => postEditDialogRef.current?.close()} aria-label="Close edit post" disabled={isSavingPost}>
+                <X size={21} />
+              </button>
+            </header>
+            <form className="post-form post-edit-form" onSubmit={savePostEdits}>
+              <p className="post-edit-type">Post type stays <strong>{editingPost.postType}</strong> after publishing.</p>
+              <label>Headline<input value={postEditForm.title} onChange={(event) => setPostEditForm({ ...postEditForm, title: event.target.value })} required maxLength={120} /></label>
+              <label>Description<textarea value={postEditForm.content} onChange={(event) => setPostEditForm({ ...postEditForm, content: event.target.value })} required maxLength={3000} /></label>
+              <label>Image <span>(optional)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handlePostImageUpload} disabled={isUploadingPostImage || isSavingPost} /></label>
+              {isUploadingPostImage && <p className="dashboard-intro">Uploading image...</p>}
+              {postEditForm.imageUrl && (
+                <div className="post-edit-image">
+                  <img className="image-upload-preview" src={postEditForm.imageUrl} alt="Post preview" />
+                  <button type="button" onClick={() => setPostEditForm({ ...postEditForm, imageUrl: '', imagePublicId: '' })}>Remove image</button>
+                </div>
+              )}
+              {editingPost.postType === 'collaboration' && (
+                <label>Collaboration requirements<textarea value={postEditForm.collaborationRequirements} onChange={(event) => setPostEditForm({ ...postEditForm, collaborationRequirements: event.target.value })} required maxLength={2000} /></label>
+              )}
+              <label>Tags <span>(comma separated)</span><input value={postEditForm.tags} onChange={(event) => setPostEditForm({ ...postEditForm, tags: event.target.value })} /></label>
+              {editingPost.postType === 'offer' && (
+                <label>Valid from<input type="date" value={postEditForm.validFrom} onChange={(event) => setPostEditForm({ ...postEditForm, validFrom: event.target.value })} required /></label>
+              )}
+              <label>Valid until<input type="date" value={postEditForm.expiresAt} min={editingPost.postType === 'offer' ? postEditForm.validFrom : undefined} onChange={(event) => setPostEditForm({ ...postEditForm, expiresAt: event.target.value })} required={editingPost.postType === 'offer'} /></label>
+              {postEditError && <p className="auth-message">{postEditError}</p>}
+              <div className="edit-profile-actions">
+                <button type="button" onClick={() => postEditDialogRef.current?.close()} disabled={isSavingPost}>Cancel</button>
+                <button type="submit" className="primary-button" disabled={isSavingPost || isUploadingPostImage}>{isSavingPost ? 'Saving...' : 'Save changes'}</button>
+              </div>
+            </form>
           </>
         )}
       </dialog>
@@ -1351,14 +1519,70 @@ function SearchPage({ token, isBusiness, onSelectBusiness }) {
   )
 }
 
-function ComingSoon({ label, icon: Icon, onExplore }) {
+function AboutLocalyzePage({ isBusiness, onNavigate }) {
+  const steps = [
+    {
+      icon: UserRound,
+      label: 'People',
+      title: 'Start with what you love',
+      description: 'Consumers bring their interests and discover independent businesses in their city.',
+    },
+    {
+      icon: Building2,
+      label: 'Local businesses',
+      title: 'Share what you make',
+      description: 'Businesses tell their story through posts, promotions, and time-bound offers.',
+    },
+    {
+      icon: Briefcase,
+      label: 'Connections',
+      title: 'Make something together',
+      description: 'Businesses can connect and turn shared ideas into meaningful collaborations.',
+    },
+  ]
+
   return (
-    <section className="coming-soon">
-      <div className="coming-icon"><Icon size={30} /></div>
-      <p className="eyebrow">Localyze / {label}</p>
-      <h1>{label} is coming soon</h1>
-      <p>We’re shaping this space now. Check back soon for the next part of your Localyze experience.</p>
-      <button className="primary-button" onClick={onExplore}><Sparkles size={16} /> Explore the feed</button>
+    <section className="about-page">
+      <header className="about-hero">
+        <p className="eyebrow">The Localyze ecosystem</p>
+        <h1>Local discovery works better together.</h1>
+        <p>Localyze brings people and independent businesses into one community—where discovering a place can lead to a follow, a conversation, or a collaboration.</p>
+        <button className="primary-button" onClick={() => onNavigate(isBusiness ? 'Home' : 'Explore')}>
+          <Search size={16} /> {isBusiness ? 'See your local network' : 'Explore local posts'}
+        </button>
+        <div className="about-hero-art" aria-label="People, local businesses, and collaborations form a connected community">
+          <div className="about-art-node"><UserRound size={25} /><span>People</span></div>
+          <span className="about-art-link" />
+          <div className="about-art-center"><Sparkles size={25} /><span>Localyze</span></div>
+          <span className="about-art-link" />
+          <div className="about-art-node"><Building2 size={25} /><span>Local businesses</span></div>
+        </div>
+      </header>
+
+      <div className="about-section-heading">
+        <p className="eyebrow">How it comes together</p>
+        <h2>One ecosystem, three ways to connect.</h2>
+      </div>
+      <div className="about-steps">
+        {steps.map(({ icon: Icon, label, title, description }, index) => (
+          <article className="about-step" key={label}>
+            <div className="about-step-top"><span>0{index + 1}</span><Icon size={20} /></div>
+            <p className="eyebrow">{label}</p>
+            <h3>{title}</h3>
+            <p>{description}</p>
+          </article>
+        ))}
+      </div>
+
+      <section className="about-loop">
+        <div className="about-loop-icon"><Heart size={20} /><MessageCircle size={20} /></div>
+        <div>
+          <p className="eyebrow">A community, not just a directory</p>
+          <h2>Discover. Engage. Grow.</h2>
+          <p>Find businesses through local posts, follow the ones you want to keep up with, and engage with the people behind them. For businesses, every post can help build an audience—and every connection can open the door to working together.</p>
+        </div>
+        <button className="about-search-link" onClick={() => onNavigate('Search')}>Find a business <ArrowRight size={16} /></button>
+      </section>
     </section>
   )
 }
@@ -1550,7 +1774,7 @@ function App() {
             {showSettings && <div className="more-menu"><button onClick={onLogout}><LogOut size={17} /> Log out</button></div>}
           </div>
           <button className={`nav-item ${showMenu ? 'active' : ''}`} onClick={() => { setShowMenu(!showMenu); setShowSettings(false) }}><Menu size={22} /><span>More</span></button>
-          {showMenu && <div className="more-menu"><button onClick={() => setActivePage('Saved')}><Bookmark size={17} /> Saved</button><button onClick={() => setActivePage('About')}><Sparkles size={17} /> About Localyze</button></div>}
+          {showMenu && <div className="more-menu">{!isBusiness && <button onClick={() => { navigateTo('Saved'); setShowMenu(false) }}><Bookmark size={17} /> Saved</button>}<button onClick={() => { navigateTo('About'); setShowMenu(false) }}><Sparkles size={17} /> About Localyze</button></div>}
         </div>
       </aside>
 
@@ -1589,7 +1813,7 @@ function App() {
               <><AccountSummary token={authToken} isBusiness={isBusiness} /><div className="suggestion-header"><strong>Businesses to follow</strong></div><SuggestedBusinesses token={authToken} onSelectBusiness={openBusinessProfile} /></>
             )}<p className="rail-footer">About · Help · Press · API · Jobs · Privacy<br />© 2026 LOCALYZE</p></aside>
           </div>
-        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} /> : activePage === 'Explore' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <ExplorePage token={authToken} userId={userId} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Saved' ? (isBusiness ? <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} /> : <SavedPage token={authToken} userId={userId} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} /> : <ProfilePage token={authToken} userId={userId} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} /> : <ComingSoon label={activePage} icon={ActiveIcon} onExplore={() => setActivePage('Home')} />}
+        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} /> : activePage === 'Explore' ? <ExplorePage token={authToken} userId={userId} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} /> : activePage === 'Saved' ? (!isBusiness && <SavedPage token={authToken} userId={userId} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'About' ? <AboutLocalyzePage isBusiness={isBusiness} onNavigate={navigateTo} /> : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} /> : <ProfilePage token={authToken} userId={userId} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} /> : null}
       </main>
     </div>
   )

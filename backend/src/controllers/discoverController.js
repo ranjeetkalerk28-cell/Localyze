@@ -41,7 +41,9 @@ const discoverPosts = async (req, res) => {
 // @route   GET /api/discover/explore
 const discoverExplore = async (req, res) => {
   try {
-    const { interests, city } = req.user;
+    const account = req.role === 'business' ? req.business : req.user;
+    const interests = req.role === 'business' ? [account.industry].filter(Boolean) : account.interests;
+    const { city } = account;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
 
@@ -51,12 +53,17 @@ const discoverExplore = async (req, res) => {
     ];
     if (orClauses.length === 0) return res.json([]);
 
-    const relevantBusinesses = await Business.find({ $or: orClauses }).select('_id');
+    const businessQuery = { $or: orClauses };
+    if (req.role === 'business') businessQuery._id = { $ne: account._id };
+    const relevantBusinesses = await Business.find(businessQuery).select('_id');
     if (relevantBusinesses.length === 0) return res.json([]);
 
+    const visibility = req.role === 'business'
+      ? { $in: ['consumers_and_businesses', 'businesses_only', null] }
+      : { $in: ['consumers_and_businesses', null] };
     const posts = await Post.find({
       status: 'active',
-      visibility: { $in: ['consumers_and_businesses', null] },
+      visibility,
       business: { $in: relevantBusinesses.map((business) => business._id) },
       ...visibleNowFilter(),
     })

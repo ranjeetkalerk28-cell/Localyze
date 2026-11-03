@@ -115,12 +115,51 @@ const updatePost = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to edit this post' });
     }
 
-    const allowedFields = ['postType', 'title', 'content', 'imageUrl', 'imagePublicId', 'tags', 'expiresAt', 'validFrom', 'collaborationRequirements'];
+    for (const field of ['title', 'content']) {
+      if (req.body[field] !== undefined && (typeof req.body[field] !== 'string' || !req.body[field].trim())) {
+        return res.status(400).json({ message: `${field} cannot be empty` });
+      }
+    }
+
+    if (req.body.tags !== undefined && (!Array.isArray(req.body.tags) || req.body.tags.some((tag) => typeof tag !== 'string'))) {
+      return res.status(400).json({ message: 'tags must be an array of strings' });
+    }
+
+    const dateFields = ['expiresAt', 'validFrom'];
+    const updatedDates = {};
+    for (const field of dateFields) {
+      if (req.body[field] === undefined) continue;
+      if (req.body[field] === null || req.body[field] === '') {
+        updatedDates[field] = null;
+        continue;
+      }
+      const date = new Date(req.body[field]);
+      if (Number.isNaN(date.getTime())) {
+        return res.status(400).json({ message: `${field} must be a valid date` });
+      }
+      updatedDates[field] = date;
+    }
+
+    if (post.postType === 'offer') {
+      const validFrom = Object.prototype.hasOwnProperty.call(updatedDates, 'validFrom') ? updatedDates.validFrom : post.validFrom;
+      const expiresAt = Object.prototype.hasOwnProperty.call(updatedDates, 'expiresAt') ? updatedDates.expiresAt : post.expiresAt;
+      if (!validFrom || !expiresAt) {
+        return res.status(400).json({ message: 'Offers require a valid-from and valid-until date' });
+      }
+      if (expiresAt <= validFrom) {
+        return res.status(400).json({ message: 'Offer valid-until date must be after its valid-from date' });
+      }
+    }
+
+    const allowedFields = ['title', 'content', 'imageUrl', 'imagePublicId', 'tags', 'collaborationRequirements'];
     allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) post[field] = req.body[field];
+      if (req.body[field] !== undefined) {
+        post[field] = field === 'tags' ? req.body[field].map((tag) => tag.trim()).filter(Boolean) : req.body[field];
+      }
     });
+    Object.assign(post, updatedDates);
     const updated = await post.save();
-    res.json(updated);
+    res.json(await updated.populate('business', 'businessName logoUrl industry'));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
