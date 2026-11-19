@@ -63,44 +63,50 @@ const getSentRequests = async (req, res) => {
   }
 };
 
+async function acceptCollaboration(filter) {
+  await Connection.init();
+  // A concurrent connection insert can abort an upsert with a duplicate key.
+  // Retry from a new transaction so both writes see the newly committed pair.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await Collaboration.db.transaction(async (session) => {
+        const collaboration = await Collaboration.findOneAndUpdate(
+          filter, { $set: { status: 'active' } }, { new: true, session }
+        );
+        if (collaboration) {
+          await Connection.acceptForCollaboration(collaboration.requester, collaboration.recipient, session);
+        }
+        return collaboration;
+      });
+    } catch (error) {
+      if (attempt >= 3 || error.code !== 11000 || !error.keyPattern?.pairKey) throw error;
+    }
+  }
+}
+
 // @desc    Accept or reject a collaboration request (recipient only)
 // @route   PUT /api/collaborations/:id
 const respondToRequest = async (req, res) => {
   try {
     const { status } = req.body; // 'active' or 'rejected'
-    const collaboration = await Collaboration.findById(req.params.id);
-
-    if (!collaboration) return res.status(404).json({ message: 'Request not found' });
-    if (collaboration.recipient.toString() !== req.business._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to respond to this request' });
-    }
     if (!['active', 'rejected'].includes(status)) {
       return res.status(400).json({ message: 'Status must be active or rejected' });
     }
 
-    collaboration.status = status;
-    await collaboration.save();
+    const filter = { _id: req.params.id, recipient: req.business._id, status: 'pending' };
+    const updated = status === 'active'
+      ? await acceptCollaboration(filter)
+      : await Collaboration.findOneAndUpdate(filter, { $set: { status } }, { new: true });
+    if (updated) return res.json(normalizeStatus(updated));
 
-    if (status === 'active') {
-      const existingConnection = await Connection.findOne({
-        $or: [
-          { requester: collaboration.requester, recipient: collaboration.recipient },
-          { requester: collaboration.recipient, recipient: collaboration.requester },
-        ],
-      });
-      if (!existingConnection) {
-        await Connection.create({
-          requester: collaboration.requester,
-          recipient: collaboration.recipient,
-          status: 'accepted',
-        });
-      } else if (existingConnection.status !== 'accepted') {
-        existingConnection.status = 'accepted';
-        await existingConnection.save();
-      }
+    const current = await Collaboration.findById(req.params.id);
+    if (!current) return res.status(404).json({ message: 'Request not found' });
+    if (!current.recipient.equals(req.business._id)) {
+      return res.status(403).json({ message: 'Not authorized to respond to this request' });
     }
-
-    res.json(normalizeStatus(collaboration));
+    const result = normalizeStatus(current);
+    if (result.status === status) return res.json(result);
+    return res.status(409).json({ message: 'This collaboration request has already been resolved' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

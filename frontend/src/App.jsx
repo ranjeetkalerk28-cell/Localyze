@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { AuthStory, FlowSteps, SidebarIdentity, NetworkRail, ConfirmDialog } from './DesktopDesign'
 import {
   Bookmark,
+  Bell,
+  Ellipsis,
+  Handshake,
   Briefcase,
   Building2,
   Camera,
@@ -12,6 +16,10 @@ import {
   LogOut,
   Menu,
   MessageCircle,
+  MapPin,
+  ImagePlus,
+  CalendarDays,
+  Tag,
   Pencil,
   PlusSquare,
   Search,
@@ -30,6 +38,7 @@ const navItems = [
   { label: 'Search', icon: Search },
   { label: 'Explore', icon: Compass },
   { label: 'Notifications', icon: Heart },
+  { label: 'Saved', icon: Bookmark, consumerOnly: true },
   { label: 'Create', icon: PlusSquare, businessOnly: true },
   { label: 'Collaborations', icon: Briefcase, businessOnly: true },
   { label: 'Profile', icon: UserRound },
@@ -96,14 +105,14 @@ function CitySelect({ name = 'city', value, onChange, required = true }) {
   }, [])
 
   return (
-    <select name={name} value={value} onChange={onChange} required={required}>
+    <select aria-label={name === 'searchCity' ? 'Search city' : 'City'} name={name} value={value} onChange={onChange} required={required}>
       <option value="" disabled>Select your city</option>
       {cities.map((city) => <option key={city} value={city}>{city}</option>)}
     </select>
   )
 }
 
-function Avatar({ name, src, large = false }) {
+function Avatar({ name = 'Business', src, large = false }) {
   if (src) return <img className={`avatar avatar-photo ${large ? 'avatar-large' : ''}`} src={src} alt={name} />
   const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2)
   return <div className={`avatar ${large ? 'avatar-large' : ''}`}>{initials}</div>
@@ -122,7 +131,7 @@ async function uploadImageFile(token, file, type = 'post') {
   return { url: data.url, publicId: data.publicId }
 }
 
-function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false, onSaveChange, onLikeChange }) {
+function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false, onSaveChange, onLikeChange, homeCard = false }) {
   const isRealPost = typeof post._id === 'string' && !post._id.startsWith('demo-')
   const isBusinessAccount = getAccountRole() === 'business'
   const [liked, setLiked] = useState(() => Boolean(userId && (post.likes?.includes(userId) || post.businessLikes?.includes(userId))))
@@ -141,6 +150,8 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
   const [commentSubmitError, setCommentSubmitError] = useState('')
   const commentsDialogRef = useRef(null)
   const businessName = post.business?.businessName || 'Localyze member'
+  const ageHours = Math.max(0, Math.floor((Date.now() - new Date(post.createdAt)) / 3600000))
+  const ageLabel = ageHours < 1 ? 'Just now' : ageHours < 24 ? `${ageHours}h ago` : formatDate(post.createdAt)
 
   useEffect(() => setSaved(initialSaved), [initialSaved])
 
@@ -279,7 +290,7 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
   }
 
   return (
-    <article className="post-card">
+    <article className={`post-card ${post.imageUrl ? 'has-photo' : 'text-post'}`}>
       <header className="post-header">
         <Avatar name={businessName} src={post.business?.logoUrl} />
         <div className="post-author">
@@ -288,9 +299,10 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
           ) : (
             <strong>{businessName}</strong>
           )}
-          <span>{post.business?.industry || 'Independent business'}</span>
+          <span>{post.business?.industry || 'Independent business'}{homeCard && <time className="feed-byline" dateTime={post.createdAt}> · {ageLabel}</time>}</span>
         </div>
         <time className="post-header-date">{formatDate(post.createdAt)}</time>
+        {homeCard && post.business?._id && <details className="feed-post-menu"><summary aria-label={`Actions for ${post.title}`}><Ellipsis /></summary><button onClick={() => onSelectBusiness(post.business._id)}>View business profile</button></details>}
       </header>
       {post.imageUrl ? (
         <img className="post-image" src={post.imageUrl} alt={post.title} loading="lazy" decoding="async" />
@@ -301,7 +313,7 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
         <div className="action-group">
           <div className="like-action">
             <button className={`icon-button ${liked ? 'is-liked' : ''}`} onClick={toggleLike} aria-label={liked ? 'Unlike post' : 'Like post'} disabled={isLiking}><Heart size={21} fill={liked ? 'currentColor' : 'none'} /></button>
-            <button className="post-like-count" onClick={toggleLike} disabled={isLiking} aria-label={`${likeCount} likes`}>{likeCount}</button>
+            <button data-count={likeCount} className="post-like-count" onClick={toggleLike} disabled={isLiking} aria-label={`${likeCount} likes`}>{likeCount}</button>
           </div>
           <button className="icon-button" onClick={openComments} aria-label="View comments"><MessageCircle size={21} /></button>
         </div>
@@ -346,6 +358,7 @@ function PostCard({ post, token, userId, onSelectBusiness, initialSaved = false,
             <X size={21} />
           </button>
         </header>
+        {post.imageUrl && <img className="comments-photo" src={post.imageUrl} alt={post.title} />}
         <div className="comments-post-context">
           <strong>{post.title}</strong>
           <p>{post.content}</p>
@@ -393,15 +406,31 @@ const postTypes = {
   collaboration: { label: 'Collaboration', description: 'A business-only opportunity for potential partners.' },
 }
 
-function AddPostFlow({ token, onPublished }) {
-  const [step, setStep] = useState('type')
-  const [postType, setPostType] = useState('offer')
+function AddPostFlow({ token, onPublished, initialType }) {
+  const [step, setStep] = useState(initialType ? 'details' : 'type')
+  const [postType, setPostType] = useState(initialType || 'offer')
   const [form, setForm] = useState({ title: '', content: '', imageUrl: '', imagePublicId: '', tags: '', validFrom: '', expiresAt: '', collaborationRequirements: '' })
   const [error, setError] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
-  const updateField = (event) => setForm({ ...form, [event.target.name]: event.target.value })
+  const [profile, setProfile] = useState(null)
+  const imageInputRef = useRef(null)
+  const headingRef = useRef(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch(`${API_URL}/business/auth/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null).then(setProfile).catch(() => {})
+    return () => controller.abort()
+  }, [token])
+  useEffect(() => { headingRef.current?.focus({ preventScroll: true }); headingRef.current?.scrollIntoView({ block: 'start' }) }, [step])
+  const audience = postType === 'collaboration' ? 'Businesses only' : 'Consumers and businesses'
+  const tags = form.tags.split(',').map((tag) => tag.trim()).filter(Boolean)
+  const typePhotos = { offer: '/images/collaboration-table.png', promotion: '/images/search-still-life.png', collaboration: '/images/local-studio.png' }
+  const heading = step === 'type' ? 'What are you sharing?' : step === 'review' ? 'Ready for your neighbourhood?' : postType === 'collaboration' ? 'Build something together.' : `${postTypes[postType].label} details`
+  function changeStep(next) { setError(''); setStep(next) }
+
+  const updateField = (event) => { const { name, value } = event.target; setForm((previous) => ({ ...previous, [name]: value })) }
 
   async function handleImageUpload(event) {
     const file = event.target.files[0]
@@ -418,8 +447,20 @@ function AddPostFlow({ token, onPublished }) {
     }
   }
 
+  function reviewPost(event) {
+    event.preventDefault()
+    setError('')
+    if (isUploading) { setError('Wait for the image to finish uploading.'); return }
+    if (!form.title.trim() || !form.content.trim()) { setError('Add a headline and description.'); return }
+    if (postType === 'offer' && (!form.validFrom || !form.expiresAt)) { setError('Choose the start and end dates for your offer.'); return }
+    if (postType === 'offer' && new Date(form.expiresAt) <= new Date(form.validFrom)) { setError('The offer must end after its start date.'); return }
+    if (postType === 'collaboration' && !form.collaborationRequirements.trim()) { setError('Describe who you would like to collaborate with.'); return }
+    setStep('review')
+  }
+
   async function publishPost(event) {
     event.preventDefault()
+    if (isPublishing) return
     setError('')
     setIsPublishing(true)
     try {
@@ -432,9 +473,9 @@ function AddPostFlow({ token, onPublished }) {
           content: form.content,
           imageUrl: form.imageUrl,
           imagePublicId: form.imagePublicId,
-          validFrom: form.validFrom || null,
+          validFrom: postType === 'offer' ? form.validFrom : null,
           expiresAt: form.expiresAt || null,
-          collaborationRequirements: form.collaborationRequirements,
+          collaborationRequirements: postType === 'collaboration' ? form.collaborationRequirements : '',
           tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
           visibility: postType === 'collaboration' ? 'businesses_only' : 'consumers_and_businesses',
         }),
@@ -449,12 +490,53 @@ function AddPostFlow({ token, onPublished }) {
     }
   }
 
-  return <section className="post-flow"><div className="post-flow-top"><p className="eyebrow">Business studio / Add post</p></div>{step === 'type' && <><h1>What are you sharing?</h1><p className="dashboard-intro">Choose a post type. We’ll show it to the right audience automatically.</p><div className="post-type-grid">{Object.entries(postTypes).map(([key, type]) => <button key={key} className={`post-type-choice ${postType === key ? 'selected' : ''}`} onClick={() => setPostType(key)}><span className={`post-type-mark post-type-${key}`}>{type.label.slice(0, 1)}</span><strong>{type.label}</strong><span>{type.description}</span></button>)}</div><button className="primary-button flow-button" onClick={() => setStep('details')}>Continue <ArrowLeft className="rotate-icon" size={16} /></button></>}{step === 'details' && <><button className="back-link" onClick={() => setStep('type')}><ArrowLeft size={16} /> Change post type</button><h1>{postTypes[postType].label} details</h1><form className="post-form" onSubmit={(event) => { event.preventDefault(); setStep('review') }}><label>Headline<input name="title" value={form.title} onChange={updateField} required placeholder={postType === 'offer' ? '20% off your first visit' : 'Something new is happening'} /></label><label>Description<textarea name="content" value={form.content} onChange={updateField} required placeholder="Tell people what they need to know..." /></label><label>Image <span>(optional)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageUpload} disabled={isUploading} /></label>{isUploading && <p className="dashboard-intro">Uploading image...</p>}{uploadError && <p className="auth-message">{uploadError}</p>}{form.imageUrl && !isUploading && <img className="image-upload-preview" src={form.imageUrl} alt="Selected" />}{postType === 'collaboration' && <label>Collaboration requirements<textarea name="collaborationRequirements" value={form.collaborationRequirements} onChange={updateField} required placeholder="Who are you hoping to work with?" /></label>}<label>Tags <span>(comma separated)</span><input name="tags" value={form.tags} onChange={updateField} placeholder="local, food, design" /></label>{postType === 'offer' && <label>Valid from<input type="date" name="validFrom" value={form.validFrom} onChange={updateField} required /></label>}<label>Valid until <span>{postType === 'offer' ? '' : '(optional)'}</span><input type="date" name="expiresAt" value={form.expiresAt} onChange={updateField} required={postType === 'offer'} /></label><button className="primary-button flow-button">Review post <ArrowLeft className="rotate-icon" size={16} /></button></form></>}{step === 'review' && <><button className="back-link" onClick={() => setStep('details')}><ArrowLeft size={16} /> Edit details</button><h1>Review before publishing</h1><article className="review-card"><span className={`post-type post-type-${postType}`}>{postTypes[postType].label} · {postType === 'collaboration' ? 'Businesses only' : 'Consumers + businesses'}</span>{form.imageUrl && <img className="image-upload-preview" src={form.imageUrl} alt={form.title} />}<h2>{form.title}</h2><p>{form.content}</p>{form.collaborationRequirements && <p><strong>Requirements:</strong> {form.collaborationRequirements}</p>}{postType === 'offer' && form.expiresAt && <Countdown targetDate={form.expiresAt} />}{form.expiresAt && <time>Valid until {form.expiresAt}</time>}<div className="tag-row">{form.tags.split(',').filter(Boolean).map((tag) => <span key={tag}>#{tag.trim()}</span>)}</div></article>{error && <p className="auth-message">{error}</p>}<button className="primary-button flow-button" onClick={publishPost} disabled={isPublishing}>{isPublishing ? 'Publishing...' : 'Publish post'} <Send size={16} /></button></>}</section>
+  return <section className={`post-flow create-post-page create-step-${step}`}>
+    {step !== 'type' && <button className="back-link" disabled={isPublishing || isUploading} onClick={() => changeStep(step === 'details' ? 'type' : 'details')}><ArrowLeft size={17} />{step === 'details' ? 'Change post type' : 'Edit details'}</button>}
+    <header className="create-heading"><h1 ref={headingRef} tabIndex={-1}>{heading}</h1><FlowSteps step={step} /></header>
+    {step === 'type' && <>
+      <p className="create-intro">Choose the type of post you would like to create for Localyze.</p>
+      <div className="post-type-grid">{Object.entries(postTypes).map(([key, type]) => <button key={key} className={`post-type-choice ${postType === key ? 'selected' : ''}`} aria-pressed={postType === key} onClick={() => setPostType(key)}>
+        <img className="post-type-photo" src={typePhotos[key]} alt="" />
+        <span className="post-type-description"><strong>{type.label}</strong><span>{key === 'offer' ? 'Share a time-bound offer, special discount or limited treat.' : key === 'promotion' ? 'Spotlight something new, seasonal or happening at your business.' : 'Find a local business to build something with.'}</span></span><span className="post-type-radio" aria-hidden="true" />
+      </button>)}</div>
+      <button className="primary-button flow-button" onClick={() => changeStep('details')}>Continue <ArrowRight size={18} /></button>
+    </>}
+    {step === 'details' && <div className="create-details-layout">
+      <form className="post-form create-form" onSubmit={reviewPost}>
+        <p className="create-intro">{postType === 'collaboration' ? 'Collaboration details.' : `Add the details for your ${postType}.`}</p>
+        <label>Headline<input name="title" value={form.title} onChange={updateField} required placeholder={postType === 'offer' ? 'A little weekday treat' : postType === 'collaboration' ? 'A ceramics pop-up at our cafe' : 'Something new is happening'} /></label>
+        <label>Description<textarea name="content" value={form.content} onChange={updateField} required placeholder="Tell people what they need to know..." /></label>
+        <div className="create-image-field"><p>Image <span>(optional)</span></p><div className="create-image-controls">
+          {form.imageUrl && <div className="create-image-thumbnail"><img src={form.imageUrl} alt="Selected post image" /><button type="button" aria-label="Remove image" disabled={isUploading} onClick={() => { setForm((previous) => ({ ...previous, imageUrl: '', imagePublicId: '' })); imageInputRef.current.value = ''; setUploadError('') }}><X size={15} /></button></div>}
+          <label className={`create-upload-button ${isUploading ? 'uploading' : ''}`}><ImagePlus size={18} /><span>{isUploading ? 'Uploading...' : form.imageUrl ? 'Change image' : 'Choose image'}</span><input ref={imageInputRef} aria-label="Post image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageUpload} disabled={isUploading} /></label>
+        </div>{uploadError && <p className="auth-message" role="alert">{uploadError}</p>}</div>
+        {postType === 'collaboration' && <label>Collaboration requirements<textarea name="collaborationRequirements" value={form.collaborationRequirements} onChange={updateField} required placeholder="Who are you hoping to work with?" /></label>}
+        <label>Tags <span>(comma separated)</span><input name="tags" value={form.tags} onChange={updateField} placeholder="coffee, local" /></label>
+        <div className="create-dates">{postType === 'offer' && <label>Valid from<input type="date" name="validFrom" value={form.validFrom} onChange={updateField} required /></label>}<label>Valid until {postType !== 'offer' && <span>(optional)</span>}<input type="date" name="expiresAt" value={form.expiresAt} onChange={updateField} required={postType === 'offer'} /></label></div>
+        {error && <p className="auth-message" role="alert">{error}</p>}
+        <button className="primary-button flow-button" disabled={isUploading}>Review post <ArrowRight size={18} /></button>
+      </form>
+      <aside className="create-context">{postType === 'collaboration' ? <><h2>For businesses,<br /><em>by businesses.</em></h2><p>Find the right local partners, collaborate on ideas, and create something meaningful for your neighbourhood.</p><img src="/images/collaboration-table.png" alt="Handmade cups and flowers on a cafe table" /></> : <><img src="/images/local-studio.png" alt="A local maker at work in a neighbourhood studio" /><h2>Visible to consumers<br /><em>and businesses.</em></h2></>}<span className="create-context-rule" aria-hidden="true" /></aside>
+    </div>}
+    {step === 'review' && <div className="create-review-layout">
+      <article className="review-card">
+        <header className="create-review-author"><Avatar name={profile?.businessName || 'Your business'} src={profile?.logoUrl} /><div><strong>{profile?.businessName || 'Your business'}</strong><span className={`post-type post-type-${postType}`}>{postTypes[postType].label}</span></div></header>
+        <h2>{form.title}</h2>{form.imageUrl && <img className="image-upload-preview" src={form.imageUrl} alt={form.title} />}<p className="create-review-content">{form.content}</p>
+        {postType === 'collaboration' && <div className="create-review-requirements"><p className="eyebrow">Collaboration requirements</p><p>{form.collaborationRequirements}</p></div>}
+        <div className="tag-row">{tags.map((tag, index) => <span key={`${tag}-${index}`}>{tag}</span>)}</div>
+      </article>
+      <aside className="create-review-summary"><h2>Review summary</h2><dl><div><dt><UserRound size={19} />Audience</dt><dd>{audience}</dd></div>{postType === 'offer' && <div><dt><CalendarDays size={19} />Valid from</dt><dd>{formatDate(form.validFrom)}</dd></div>}<div><dt><CalendarDays size={19} />Valid until</dt><dd>{form.expiresAt ? formatDate(form.expiresAt) : 'No expiry'}</dd></div><div><dt><Tag size={19} />Tags</dt><dd>{tags.length ? tags.join(', ') : 'None'}</dd></div></dl>
+        {error && <p className="auth-message" role="alert">{error}</p>}
+        <button className="primary-button flow-button" onClick={publishPost} disabled={isPublishing}>{isPublishing ? 'Publishing...' : 'Publish post'}<ArrowRight size={18} /></button>
+      </aside>
+    </div>}
+  </section>
 }
 
 function NotificationsPage({ token, isBusiness, onExplore }) {
   const [notifications, setNotifications] = useState([])
   const [requests, setRequests] = useState([])
+  const [responseNotice, setResponseNotice] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -466,17 +548,27 @@ function NotificationsPage({ token, isBusiness, onExplore }) {
   }, [token, isBusiness])
 
   async function respond(id, status) {
-    const response = await fetch(`${API_URL}/connections/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status }),
-    })
-    if (response.ok) setRequests((prev) => prev.filter((request) => request._id !== id))
+    setResponseNotice('')
+    try {
+      const response = await fetch(`${API_URL}/connections/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      })
+      if (response.status === 409) {
+        setResponseNotice('This connection request was already resolved.')
+      } else if (!response.ok) {
+        throw new Error('Unable to update connection request')
+      }
+      setRequests((prev) => prev.filter((request) => request._id !== id))
+    } catch {
+      setResponseNotice('Couldn’t update this request. Please try again.')
+    }
   }
 
   const items = isBusiness ? requests : notifications
 
-  return <section className="notifications-page"><p className="eyebrow">Localyze / Notifications</p><h1>{isBusiness ? 'Connection requests' : 'Good things to know.'}</h1><p className="dashboard-intro">{isBusiness ? 'Businesses that want to connect with you.' : 'Offers and updates from businesses in your local signal.'}</p>{isLoading ? <div className="loading-state">{isBusiness ? 'Checking for requests...' : 'Checking for new offers...'}</div> : items.length ? <div className="notification-list">{isBusiness ? requests.map((request) => <article className="notification-item unread" key={request._id}><div className="notification-icon"><Briefcase size={18} /></div><div><strong>{request.requester?.businessName} wants to connect</strong><span>{request.requester?.industry || 'Local business'}</span></div><button className="primary-button" onClick={() => respond(request._id, 'accepted')}>Accept</button><button onClick={() => respond(request._id, 'rejected')}>Reject</button></article>) : notifications.map((notification) => <article className={`notification-item ${notification.read ? '' : 'unread'}`} key={notification._id}><div className="notification-icon"><Sparkles size={18} /></div><div><strong>{notification.message}</strong><span>{new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(notification.createdAt))}</span>{notification.post?.postType === 'offer' && notification.post?.expiresAt && <Countdown targetDate={notification.post.expiresAt} compact />}</div></article>)}</div> : <div className="empty-state"><Sparkles size={24} /><p>{isBusiness ? 'No connection requests yet.' : 'No offers yet. We’ll let you know when something good lands.'}</p><button className="primary-button" onClick={onExplore}>Explore the feed</button></div>}</section>
+  return <section className="notifications-page"><p className="eyebrow">Localyze / Notifications</p><h1>{isBusiness ? 'Connection requests' : 'Good things to know.'}</h1><p className="dashboard-intro">{isBusiness ? 'Businesses that want to connect with you.' : 'Offers and updates from businesses in your local signal.'}</p>{responseNotice && <p role="status">{responseNotice}</p>}{isLoading ? <div className="loading-state">{isBusiness ? 'Checking for requests...' : 'Checking for new offers...'}</div> : items.length ? <div className="notification-list">{isBusiness ? requests.map((request) => <article className="notification-item unread" key={request._id}><div className="notification-icon"><Briefcase size={18} /></div><div><strong>{request.requester?.businessName} wants to connect</strong><span>{request.requester?.industry || 'Local business'}</span></div><button className="primary-button" onClick={() => respond(request._id, 'accepted')}>Accept</button><button onClick={() => respond(request._id, 'rejected')}>Reject</button></article>) : notifications.map((notification) => <article className={`notification-item ${notification.read ? '' : 'unread'}`} key={notification._id}><div className="notification-icon"><Sparkles size={18} /></div><div><strong>{notification.message}</strong><span>{new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(notification.createdAt))}</span>{notification.post?.postType === 'offer' && notification.post?.expiresAt && <Countdown targetDate={notification.post.expiresAt} compact />}</div></article>)}</div> : <div className="empty-state"><Sparkles size={24} /><p>{isBusiness ? 'No connection requests yet.' : 'No offers yet. We’ll let you know when something good lands.'}</p><button className="primary-button" onClick={onExplore}>Explore the feed</button></div>}</section>
 }
 
 function ExplorePage({ token, userId, isBusiness, onSelectBusiness, savedPostIds, onSaveChange }) {
@@ -509,7 +601,7 @@ function ExplorePage({ token, userId, isBusiness, onSelectBusiness, savedPostIds
   }, [token])
 
   return (
-    <section className="post-flow">
+    <section className="post-flow explore-page">
       <p className="eyebrow">Localyze / Explore</p>
       <h1>Discover what’s near you.</h1>
       <p className="dashboard-intro">{isBusiness ? 'Discover nearby businesses and posts from others in your city or industry.' : 'Posts from businesses that match your city and interests, whether you follow them yet or not.'}</p>
@@ -519,7 +611,7 @@ function ExplorePage({ token, userId, isBusiness, onSelectBusiness, savedPostIds
         <div className="empty-state"><Sparkles size={24} /><p>We couldn’t load Explore. Check your connection and try again.</p><button className="primary-button" onClick={loadExplore}>Retry</button></div>
       ) : posts.length === 0 ? (
         <div className="empty-state"><Compass size={24} /><p>{isBusiness ? 'No nearby or industry-related business posts to discover yet.' : 'Nothing to discover yet. Add interests to your profile to see more here.'}</p></div>
-      ) : posts.map((post) => (
+      ) : <div className="explore-grid">{posts.map((post) => (
         <PostCard
           post={post}
           token={token}
@@ -529,7 +621,7 @@ function ExplorePage({ token, userId, isBusiness, onSelectBusiness, savedPostIds
           onSaveChange={onSaveChange}
           key={post._id}
         />
-      ))}
+      ))}</div>}
     </section>
   )
 }
@@ -613,22 +705,6 @@ function FollowButton({ token, businessId, initialFollowing = false, onChange })
   return <button className={following ? 'following-button' : ''} onClick={toggleFollow} disabled={!businessId || isSaving}>{following ? 'Following' : 'Follow'}</button>
 }
 
-function AccountSummary({ token, isBusiness }) {
-  const [profile, setProfile] = useState(null)
-
-  useEffect(() => {
-    fetch(`${API_URL}/${isBusiness ? 'business' : 'user'}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((response) => response.ok ? response.json() : null)
-      .then(setProfile)
-  }, [token, isBusiness])
-
-  const name = profile?.businessName || profile?.name || 'Your account'
-  const detail = profile?.industry || profile?.email || ''
-  const photo = profile?.logoUrl || profile?.avatarUrl
-
-  return <div className="profile-card"><Avatar name={name} src={photo} large /><div><strong>{name}</strong><span>{detail}</span></div></div>
-}
-
 function SuggestedBusinesses({ token, onSelectBusiness }) {
   const [businesses, setBusinesses] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -647,19 +723,74 @@ function SuggestedBusinesses({ token, onSelectBusiness }) {
   return <>{businesses.map((business) => <div className="suggestion" key={business._id}><button className="business-suggestion-link" onClick={() => onSelectBusiness(business._id)}><Avatar name={business.businessName} src={business.logoUrl} /><span><strong>{business.businessName}</strong><small>{business.industry || 'Local business'}</small></span></button><FollowButton token={token} businessId={business._id} initialFollowing={business.following} /></div>)}</>
 }
 
-function StoriesRow({ token, isBusiness, onSelectBusiness }) {
+function StoriesRow({ token, isBusiness, onSelectBusiness, userId, savedPostIds, onSaveChange }) {
   const [stories, setStories] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-
+  const [error, setError] = useState(false)
+  const [version, setVersion] = useState(0)
+  const [now, setNow] = useState(Date.now())
+  const [selectedId, setSelectedId] = useState(null)
+  const rowRef = useRef(null)
+  const dialogRef = useRef(null)
   useEffect(() => {
-    fetch(`${API_URL}/stories`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((response) => response.ok ? response.json() : [])
-      .then(setStories)
-      .catch(() => setStories([]))
-      .finally(() => setIsLoading(false))
-  }, [token, isBusiness])
-
-  return <div className="story-row">{isLoading ? <div className="story-loading">Loading stories...</div> : stories.length ? stories.map((post) => <button className="story" key={post._id} onClick={() => onSelectBusiness(post.business._id)}><div className="story-ring story-gradient"><Avatar name={post.business.businessName} src={post.business.logoUrl} /></div><span>{post.business.businessName}</span></button>) : <div className="story-empty">{isBusiness ? 'Connect with businesses to see their stories.' : 'Follow businesses to see their stories.'}</div>}</div>
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    setIsLoading(true)
+    setError(false)
+    fetch(`${API_URL}/stories?offers=true`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error('Offers unavailable'); return response.json() })
+      .then((data) => { setStories(data); setNow(Date.now()) })
+      .catch((error) => { if (error.name !== 'AbortError') setError(true) })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false) })
+    return () => controller.abort()
+  }, [token, version])
+  const visible = stories.filter((post) => post.business && post.postType === 'offer' && post.status === 'active' && new Date(post.expiresAt).getTime() > now && (!post.validFrom || new Date(post.validFrom).getTime() <= now))
+  const selectedIndex = visible.findIndex((post) => post._id === selectedId)
+  const selected = visible[selectedIndex]
+  const open = Boolean(selected)
+  useEffect(() => {
+    if (!open) {
+      dialogRef.current?.close()
+      return
+    }
+    dialogRef.current.showModal()
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previous }
+  }, [open])
+  function moveOffer(direction) {
+    const next = visible[selectedIndex + direction]
+    if (next) setSelectedId(next._id)
+  }
+  return <section className="offer-stories" aria-label="Active offers">
+    <div className="stories-heading"><div><p className="eyebrow">A little something local</p><h2>{isBusiness ? 'Offers from your connections' : 'Offers from businesses you follow'}</h2></div><div className="offer-rail-controls"><button className="icon-button" aria-label="Scroll offers left" onClick={() => rowRef.current?.scrollBy({ left: -280, behavior: 'smooth' })}><ArrowLeft size={18} /></button><button className="icon-button" aria-label="Scroll offers right" onClick={() => rowRef.current?.scrollBy({ left: 280, behavior: 'smooth' })}><ArrowRight size={18} /></button></div></div>
+    <div className="story-row" ref={rowRef} tabIndex={0}>{isLoading ? <div className="story-loading">Finding local offers...</div> : error ? <div className="story-empty">Offers could not load. <button onClick={() => setVersion((value) => value + 1)}>Retry</button></div> : visible.length ? visible.map((post) => {
+      const hours = Math.max(1, Math.ceil((new Date(post.expiresAt).getTime() - now) / 3600000))
+      const endingSoon = hours <= 24
+      return <button className={`story ${endingSoon ? 'ending-soon' : ''}`} key={post._id} onClick={() => { setNow(Date.now()); setSelectedId(post._id) }} aria-label={`View offer from ${post.business.businessName}: ${post.title}`} aria-haspopup="dialog" title={post.title}><div className="story-ring"><Avatar name={post.business.businessName} src={post.business.logoUrl} />{endingSoon && <span className="story-time">{hours}h</span>}</div><span>{post.business.businessName}</span></button>
+    }) : <div className="story-empty">{isBusiness ? 'No active offers from your connections just yet.' : 'No active offers from businesses you follow just yet.'}</div>}</div>
+    <dialog ref={dialogRef} className="offer-viewer" aria-label="Active offer viewer" onClose={(event) => { if (event.target === event.currentTarget) setSelectedId(null) }} onCancel={(event) => { if (event.target === event.currentTarget) setSelectedId(null) }} onClick={(event) => { if (event.target === dialogRef.current) dialogRef.current.close() }} onKeyDown={(event) => {
+      if (event.target.closest('input, textarea, select, [contenteditable], .comments-dialog')) return
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); moveOffer(event.key === 'ArrowLeft' ? -1 : 1) }
+    }}>
+      {selected && <>
+        <div className="offer-viewer-top"><p className="eyebrow" aria-live="polite">Local offers · {selectedIndex + 1} / {visible.length}</p><button className="icon-button" aria-label="Close offer" autoFocus onClick={() => dialogRef.current.close()}><X size={22} /></button></div>
+        <div className="offer-viewer-stage">
+          <button className="offer-arrow" aria-label="Previous offer" disabled={selectedIndex === 0} onClick={() => moveOffer(-1)}><ArrowLeft size={24} /></button>
+          <div className="offer-viewer-post"><PostCard key={selected._id} post={selected} token={token} userId={userId} initialSaved={savedPostIds?.has(selected._id)} onSaveChange={onSaveChange} onLikeChange={(id, liked) => setStories((items) => items.map((item) => {
+            if (item._id !== id) return item
+            const field = isBusiness ? 'businessLikes' : 'likes'
+            const ids = (item[field] || []).filter((value) => value !== userId)
+            return { ...item, [field]: liked ? [...ids, userId] : ids }
+          }))} onSelectBusiness={(id) => { dialogRef.current.close(); onSelectBusiness(id) }} /></div>
+          <button className="offer-arrow" aria-label="Next offer" disabled={selectedIndex === visible.length - 1} onClick={() => moveOffer(1)}><ArrowRight size={24} /></button>
+        </div>
+      </>}
+    </dialog>
+  </section>
 }
 
 function ProfilePage({ token, userId, onExplore, onSelectBusiness, savedPostIds, onSaveChange }) {
@@ -783,6 +914,7 @@ function ProfilePage({ token, userId, onExplore, onSelectBusiness, savedPostIds,
       const data = await response.json()
       if (!response.ok) throw new Error(data.message || 'Unable to save profile')
       setProfile(data)
+      window.dispatchEvent(new Event('account-profile-updated'))
       setIsEditing(false)
     } catch (saveCatchError) {
       setSaveError(saveCatchError.message)
@@ -893,21 +1025,49 @@ function ProfilePage({ token, userId, onExplore, onSelectBusiness, savedPostIds,
   )
 }
 
+function RecommendedConnections({ token, onSelectBusiness }) {
+  const [businesses, setBusinesses] = useState(null)
+  const [error, setError] = useState(false)
+  const [version, setVersion] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController()
+    setError(false)
+    fetch(`${API_URL}/connections/recommendations`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error(); return response.json() })
+      .then(setBusinesses)
+      .catch(() => { if (!controller.signal.aborted) setError(true) })
+    return () => controller.abort()
+  }, [token, version])
+  if (error) return <p role="status">Connections could not load. <button className="rail-retry" onClick={() => setVersion(version + 1)}>Retry</button></p>
+  if (!businesses) return <p role="status">Finding local businesses…</p>
+  if (!businesses.length) return <p>No new connections in your city yet.</p>
+  return <ul className="connection-list">{businesses.map((business) => <li key={business._id}>
+    <button className="connection-profile" onClick={() => onSelectBusiness(business._id)}>
+      <Avatar name={business.businessName} src={business.logoUrl} />
+      <span><strong>{business.businessName}</strong><small>{business.industry && `${business.industry} · `}In your city</small></span>
+    </button>
+    <ConnectButton token={token} businessId={business._id} businessName={business.businessName} />
+  </li>)}</ul>
+}
+
 function ConnectButton({ token, businessId, businessName, initialStatus = 'none', onChange }) {
   const [status, setStatus] = useState(initialStatus)
   const [isSaving, setIsSaving] = useState(false)
+  const [requestError, setRequestError] = useState(false)
 
   async function sendRequest() {
     setIsSaving(true)
+    setRequestError(false)
     try {
       const response = await fetch(`${API_URL}/connections/${businessId}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (response.ok) {
-        setStatus('pending_sent')
-        onChange?.('pending_sent')
-      }
+      if (!response.ok) throw new Error()
+      setStatus('pending_sent')
+      onChange?.('pending_sent')
+    } catch {
+      setRequestError(true)
     } finally {
       setIsSaving(false)
     }
@@ -938,7 +1098,7 @@ function ConnectButton({ token, businessId, businessName, initialStatus = 'none'
   const labels = { none: 'Connect', pending_sent: 'Requested', pending_received: 'Pending', connected: 'Connected' }
   const isClickable = status === 'none' || status === 'connected'
 
-  return <button className={status !== 'none' ? 'following-button' : ''} onClick={handleClick} disabled={!businessId || isSaving || !isClickable}>{labels[status]}</button>
+  return <button className={status !== 'none' ? 'following-button' : ''} onClick={handleClick} disabled={!businessId || isSaving || !isClickable}>{requestError ? 'Retry request' : labels[status]}</button>
 }
 
 const profileTabs = [
@@ -957,6 +1117,9 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
   const [selectedPost, setSelectedPost] = useState(null)
   const postDialogRef = useRef(null)
   const [editingPost, setEditingPost] = useState(null)
+  const [deletingPost, setDeletingPost] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [postEditForm, setPostEditForm] = useState(null)
   const [postEditError, setPostEditError] = useState('')
   const [isSavingPost, setIsSavingPost] = useState(false)
@@ -1101,13 +1264,19 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
     }
   }
 
-  async function deletePost(postId) {
-    if (!window.confirm('Delete this post? This cannot be undone.')) return
-    const response = await fetch(`${API_URL}/posts/${postId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (response.ok) setPosts((previous) => previous.filter((post) => post._id !== postId))
+  async function deletePost() {
+    if (!deletingPost || isDeleting) return
+    setIsDeleting(true)
+    setDeleteError('')
+    try {
+      const response = await fetch(`${API_URL}/posts/${deletingPost}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error('Could not delete this post. Please try again.')
+      setPosts((previous) => previous.filter((post) => post._id !== deletingPost))
+      setDeletingPost(null)
+    } catch (error) { setDeleteError(error.message) }
+    finally { setIsDeleting(false) }
   }
 
   function startEditingPost(post) {
@@ -1285,7 +1454,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
                       {isOwnProfile && (
                         <div className="profile-post-management">
                           <button className="profile-post-edit" aria-label={`Edit post: ${post.title}`} title="Edit post" onClick={() => startEditingPost(post)}><Pencil size={14} /></button>
-                          <button className="profile-post-delete" aria-label={`Delete post: ${post.title}`} title="Delete post" onClick={() => deletePost(post._id)}><Trash2 size={14} /></button>
+                          <button className="profile-post-delete" aria-label={`Delete post: ${post.title}`} title="Delete post" onClick={() => { setDeleteError(''); setDeletingPost(post._id) }}><Trash2 size={14} /></button>
                         </div>
                       )}
                     </article>
@@ -1296,11 +1465,11 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
           )}
 
           {viewerIsBusiness && !isOwnProfile && (
-            <div className="profile-section">
-              <div className="suggestion-header"><strong>Send a collaboration request</strong></div>
+            <div className="profile-section collaboration-compose">
+              <div className="suggestion-header"><strong>Request a collaboration</strong></div>
               {collabStatus === 'sent' ? <p className="dashboard-intro">Request sent.</p> : (
                 <>
-                  <textarea placeholder="Tell them what you have in mind..." value={collabMessage} onChange={(event) => setCollabMessage(event.target.value)} />
+                  <textarea aria-label="Collaboration message" placeholder="Tell them what you have in mind..." value={collabMessage} onChange={(event) => setCollabMessage(event.target.value)} />
                   <button className="primary-button" onClick={sendCollaboration} disabled={collabStatus === 'sending'}>{collabStatus === 'sending' ? 'Sending...' : 'Send request'}</button>
                   {collabStatus === 'error' && <p className="auth-message">Unable to send request.</p>}
                 </>
@@ -1309,6 +1478,7 @@ function BusinessProfilePage({ businessId, token, viewerId, viewerIsBusiness, on
           )}
         </>
       )}
+      <ConfirmDialog open={Boolean(deletingPost)} title="Delete this post?" busy={isDeleting} error={deleteError} onCancel={() => setDeletingPost(null)} onConfirm={deletePost}>This removes the post from your profile and the feed. This action cannot be undone.</ConfirmDialog>
       <dialog
         ref={postDialogRef}
         className="business-post-dialog"
@@ -1398,78 +1568,81 @@ function CollaborationsPage({ token, onExplore, onSelectBusiness }) {
   const [received, setReceived] = useState([])
   const [sent, setSent] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [version, setVersion] = useState(0)
+  const [busy, setBusy] = useState({})
+  const [errors, setErrors] = useState({})
   const [expanded, setExpanded] = useState({ requests: false, active: false, completed: false })
 
   useEffect(() => {
-    Promise.all([
-      fetch(`${API_URL}/collaborations/received`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.ok ? r.json() : []),
-      fetch(`${API_URL}/collaborations/sent`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.ok ? r.json() : []),
-    ]).then(([receivedData, sentData]) => { setReceived(receivedData); setSent(sentData) })
-      .finally(() => setIsLoading(false))
-  }, [token])
+    const controller = new AbortController()
+    setIsLoading(true)
+    setLoadError('')
+    Promise.all(['received', 'sent'].map(async (direction) => {
+      const response = await fetch(`${API_URL}/collaborations/${direction}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      if (!response.ok) throw new Error('Unable to load collaborations. Please try again.')
+      return response.json()
+    })).then(([receivedData, sentData]) => { setReceived(receivedData); setSent(sentData) })
+      .catch((error) => { if (!controller.signal.aborted) setLoadError(error.message) })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false) })
+    return () => controller.abort()
+  }, [token, version])
 
-  async function respond(id, status) {
-    const response = await fetch(`${API_URL}/collaborations/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status }),
-    })
-    if (response.ok) {
+  async function updateCollaboration(id, status) {
+    if (busy[id]) return
+    setBusy((current) => ({ ...current, [id]: status }))
+    setErrors((current) => ({ ...current, [id]: '' }))
+    try {
+      const response = await fetch(`${API_URL}/collaborations/${id}${status === 'completed' ? '/complete' : ''}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        ...(status !== 'completed' && { body: JSON.stringify({ status }) }),
+      })
+      if (!response.ok) throw new Error('Could not update this collaboration. Please try again.')
       const updated = await response.json()
-      setReceived((prev) => prev.map((item) => item._id === id ? updated : item))
-      setSent((prev) => prev.map((item) => item._id === id ? updated : item))
+      // Mutation responses contain business IDs; retain the populated display details.
+      const merge = (items) => items.map((item) => item._id === id ? { ...item, ...updated, requester: typeof updated.requester === 'object' ? updated.requester : item.requester, recipient: typeof updated.recipient === 'object' ? updated.recipient : item.recipient } : item)
+      setReceived(merge)
+      setSent(merge)
+    } catch (error) {
+      setErrors((current) => ({ ...current, [id]: error.message }))
+    } finally {
+      setBusy((current) => ({ ...current, [id]: null }))
     }
   }
 
-  async function complete(id) {
-    const response = await fetch(`${API_URL}/collaborations/${id}/complete`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (response.ok) {
-      const updated = await response.json()
-      setReceived((prev) => prev.map((item) => item._id === id ? updated : item))
-      setSent((prev) => prev.map((item) => item._id === id ? updated : item))
-    }
-  }
-
-  const allCollaborations = [...received, ...sent].filter((item, index, list) => list.findIndex((candidate) => candidate._id === item._id) === index)
-  const requests = received.filter((item) => item.status === 'pending').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  const active = allCollaborations.filter((item) => item.status === 'active').sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
-  const completed = allCollaborations.filter((item) => item.status === 'completed').sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
-
-  function toggle(section) {
-    setExpanded((current) => ({ ...current, [section]: !current[section] }))
-  }
-
-  function BusinessLink({ business, children }) {
-    if (!business?._id) return <strong>{children}</strong>
-    return <button className="business-link" onClick={() => onSelectBusiness(business._id)}>{children}</button>
-  }
-
-  function CollaborationRow({ item, direction, section }) {
-    const business = direction === 'sent' ? item.recipient : item.requester
-    return <div className="collaboration-row"><Avatar name={business?.businessName || '?'} /><div className="collaboration-main"><BusinessLink business={business}>{business?.businessName || 'Unknown business'}</BusinessLink><span>{item.message || `${section} collaboration`}</span></div><span className={`collaboration-status status-${item.status}`}>{item.status}</span>{section === 'requests' && <div className="collaboration-actions"><button className="primary-button" onClick={() => respond(item._id, 'active')}>Accept</button><button onClick={() => respond(item._id, 'rejected')}>Reject</button></div>}{section === 'active' && <button onClick={() => complete(item._id)}>Mark completed</button>}</div>
-  }
-
-  function Section({ title, count, items, limit, section, direction }) {
-    const visibleItems = expanded[section] ? items : items.slice(0, limit)
-    return <div className="collaboration-section"><div className="collaboration-section-header"><div><p className="eyebrow">{section === 'requests' ? 'New activity' : section === 'active' ? 'In progress' : 'Archive'}</p><h2>{title} <span>{count}</span></h2></div>{items.length > limit && <button className="show-more-button" onClick={() => toggle(section)}>{expanded[section] ? 'Show less' : `Show more (${items.length - limit})`}</button>}</div>{visibleItems.length ? <div className="collaboration-list">{visibleItems.map((item) => <CollaborationRow key={item._id} item={item} direction={direction || (received.some((receivedItem) => receivedItem._id === item._id) ? 'received' : 'sent')} section={section} />)}</div> : <p className="dashboard-intro">No {title.toLowerCase()} yet.</p>}</div>
-  }
-
-  return (
-    <section className="post-flow">
-      <p className="eyebrow">Localyze / Collaborations</p>
-      <h1>Work together.</h1>
-      <p className="dashboard-intro">Requests to and from other businesses.</p>
-      {isLoading ? <div className="loading-state">Loading collaborations...</div> : <>
-        <Section title="New collaboration requests" count={requests.length} items={requests} limit={2} section="requests" />
-        <Section title="Active collaborations" count={active.length} items={active} limit={5} section="active" />
-        <Section title="Completed collaborations" count={completed.length} items={completed} limit={3} section="completed" />
-        {!requests.length && !active.length && !completed.length && <div className="empty-state"><Briefcase size={24} /><p>No collaboration activity yet.</p><button className="primary-button" onClick={onExplore}>Explore the feed</button></div>}
+  const all = [...received, ...sent].filter((item, index, list) => list.findIndex((candidate) => candidate._id === item._id) === index)
+  const byRecent = (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+  const sections = [
+    { key: 'requests', title: 'New collaboration requests', items: received.filter((item) => item.status === 'pending').sort(byRecent), limit: 2 },
+    { key: 'active', title: 'Active collaborations', items: all.filter((item) => item.status === 'active').sort(byRecent), limit: 5 },
+    { key: 'completed', title: 'Completed collaborations', items: all.filter((item) => item.status === 'completed').sort(byRecent), limit: 3 },
+  ]
+  return <section className="post-flow collaborations-page">
+    <div className="collaborations-content">
+      <header className="collaborations-heading"><h1>Work together.</h1><p>Small ideas. Shared possibilities.</p></header>
+      {isLoading ? <div className="loading-state" role="status">Loading collaborations...</div> : loadError ? <div className="empty-state" role="alert"><p>{loadError}</p><button className="primary-button" onClick={() => setVersion((value) => value + 1)}>Retry</button></div> : <>
+        {sections.map(({ key, title, items, limit }) => <section className="collaboration-section" key={key} aria-labelledby={`collaboration-${key}`}>
+          <div className="collaboration-section-header"><h2 id={`collaboration-${key}`}>{title}</h2>{items.length > limit && <button className="show-more-button" aria-expanded={Boolean(expanded[key])} onClick={() => setExpanded((current) => ({ ...current, [key]: !current[key] }))}>{expanded[key] ? 'Show less' : `Show more (${items.length - limit})`}</button>}</div>
+          {items.length ? <div className="collaboration-list">{(expanded[key] ? items : items.slice(0, limit)).map((item) => {
+            const business = received.some((entry) => entry._id === item._id) ? item.requester : item.recipient
+            return <article className="collaboration-row" key={item._id} aria-label={`Collaboration with ${business?.businessName || 'unknown business'}`} aria-busy={Boolean(busy[item._id])}>
+              <button className="collaboration-portrait" onClick={() => onSelectBusiness(business._id)} disabled={!business?._id} aria-label={`View ${business?.businessName || 'business'} profile`}><Avatar name={business?.businessName || 'Local business'} src={business?.logoUrl} /></button>
+              <div className="collaboration-main">{business?._id ? <button className="business-link" onClick={() => onSelectBusiness(business._id)}>{business.businessName}</button> : <strong>Unknown business</strong>}<span className="collaboration-industry">{business?.industry || 'Local business'}</span><p>{item.message || 'An opportunity to work together.'}</p></div>
+              <div className="collaboration-response">
+                {key !== 'requests' && <span className={`collaboration-status status-${item.status}`}>{item.status}</span>}
+                {key === 'requests' && <div className="collaboration-actions"><button className="primary-button" disabled={Boolean(busy[item._id])} onClick={() => updateCollaboration(item._id, 'active')}>{busy[item._id] === 'active' ? 'Accepting...' : 'Accept'}</button><button className="collaboration-reject" disabled={Boolean(busy[item._id])} onClick={() => updateCollaboration(item._id, 'rejected')}>{busy[item._id] === 'rejected' ? 'Rejecting...' : 'Reject'}</button></div>}
+                {key === 'active' && <button className="primary-button collaboration-complete" disabled={Boolean(busy[item._id])} onClick={() => updateCollaboration(item._id, 'completed')}>{busy[item._id] ? 'Completing...' : 'Mark completed'}</button>}
+              </div>
+              {errors[item._id] && <p className="collaboration-error" role="alert">{errors[item._id]}</p>}
+            </article>
+          })}</div> : <p className="collaboration-empty">{key === 'requests' ? 'You are all caught up. New requests will appear here.' : key === 'active' ? 'Your next shared idea starts with a collaboration.' : 'Completed collaborations will appear here.'}</p>}
+        </section>)}
+        {sections.every(({ items }) => !items.length) && <button className="editorial-link" onClick={onExplore}>Explore your local network <ArrowRight size={18} /></button>}
       </>}
-    </section>
-  )
+    </div>
+    <aside className="collaborations-editorial" aria-label="Better together"><h2>Better,<br />together.</h2><img src="/images/collaboration-table.png" alt="Handmade ceramic cups and flowers on a sunlit cafe table" /></aside>
+  </section>
 }
 
 function SearchPage({ token, isBusiness, onSelectBusiness }) {
@@ -1477,46 +1650,63 @@ function SearchPage({ token, isBusiness, onSelectBusiness }) {
   const [city, setCity] = useState('')
   const [results, setResults] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
-    fetch(`${API_URL}/${isBusiness ? 'business' : 'user'}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+    const controller = new AbortController()
+    setProfileLoading(true)
+    fetch(`${API_URL}/${isBusiness ? 'business' : 'user'}/auth/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
       .then((response) => response.ok ? response.json() : null)
-      .then((profile) => { if (profile?.city) setCity(profile.city) })
+      .then((profile) => { if (!controller.signal.aborted && profile?.city) setCity((current) => current || profile.city) })
+      .catch(() => {})
+      .finally(() => { if (!controller.signal.aborted) setProfileLoading(false) })
+    return () => controller.abort()
   }, [token, isBusiness])
 
   useEffect(() => {
     if (!city) return
+    const controller = new AbortController()
     setIsLoading(true)
-    const params = new URLSearchParams({ city })
-    if (query.trim()) params.set('q', query.trim())
-    fetch(`${API_URL}/businesses/search?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((response) => response.ok ? response.json() : [])
-      .then(setResults)
-      .catch(() => setResults([]))
-      .finally(() => setIsLoading(false))
-  }, [token, query, city])
+    setError('')
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ city })
+        if (query.trim()) params.set('q', query.trim())
+        const response = await fetch(`${API_URL}/businesses/search?${params}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+        if (!response.ok) throw new Error('We could not load businesses. Please try again.')
+        const data = await response.json()
+        if (!controller.signal.aborted) setResults(data)
+      } catch (error) {
+        if (!controller.signal.aborted) setError(error.message)
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false)
+      }
+    }, 250)
+    return () => { clearTimeout(timer); controller.abort() }
+  }, [token, query, city, version])
 
-  return (
-    <section className="post-flow">
-      <p className="eyebrow">Localyze / Search</p>
-      <h1>Find a business.</h1>
-      <p className="dashboard-intro">Search by name or industry, filtered to a city of your choice.</p>
-      <div className="search-controls">
-        <input className="search-input" placeholder="Search by name or industry..." value={query} onChange={(event) => setQuery(event.target.value)} />
-        <CitySelect name="searchCity" value={city} onChange={(event) => setCity(event.target.value)} />
-      </div>
-      {!city ? <div className="loading-state">Loading your city...</div> : isLoading ? <div className="loading-state">Searching...</div> : results.length ? (
-        <div className="search-results">
-          {results.map((business) => (
-            <button className="suggestion business-suggestion-link" key={business._id} onClick={() => onSelectBusiness(business._id)}>
-              <Avatar name={business.businessName} src={business.logoUrl} />
-              <span><strong>{business.businessName}</strong><small>{business.username ? `@${business.username} · ` : ''}{business.industry || 'Local business'} · {business.city}</small></span>
-            </button>
-          ))}
+  return <section className="post-flow search-page">
+    <div className="search-workspace">
+      <div className="search-content">
+        <header className="search-heading"><h1>Find a business.</h1><p>Good neighbours make great connections.</p></header>
+        <div className="search-controls" role="search" aria-label="Find local businesses">
+          <label className="search-query-field"><Search size={23} aria-hidden="true" /><input type="search" aria-label="Search by name or industry" className="search-input" placeholder="Search by name or industry..." value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+          <div className="search-city-field"><MapPin size={22} aria-hidden="true" /><CitySelect name="searchCity" value={city} onChange={(event) => setCity(event.target.value)} /></div>
         </div>
-      ) : <div className="empty-state"><Search size={24} /><p>No businesses found in {city}.</p></div>}
-    </section>
-  )
+        <div className="search-feedback" aria-live="polite">
+          {!city ? <p className="search-state">{profileLoading ? 'Finding your city...' : 'Choose a city above to discover local businesses.'}</p> : isLoading ? <p className="search-state" role="status">Finding local businesses...</p> : error ? <div className="search-state" role="alert"><h2>Let us try that again.</h2><p>{error}</p><button className="primary-button" onClick={() => setVersion((value) => value + 1)}>Retry search</button></div> : results.length === 0 ? <div className="search-state"><h2>No businesses found.</h2><p>Try another name, industry or city.</p>{query && <button className="editorial-link" onClick={() => setQuery('')}>Clear search <ArrowRight size={18} /></button>}</div> : <span className="search-result-count">{results.length} {results.length === 1 ? 'business' : 'businesses'} found in {city}</span>}
+        </div>
+        {city && !isLoading && !error && <div className="search-results">{results.map((business) => <button className="search-result" key={business._id} onClick={() => onSelectBusiness(business._id)} aria-label={`View ${business.businessName} profile`}>
+          <Avatar name={business.businessName} src={business.logoUrl} />
+          <span className="search-result-copy"><strong>{business.businessName}</strong>{business.username && <span className="search-result-handle">@{business.username}</span>}<span className="search-result-meta">{business.industry || 'Local business'}{business.city && <> &middot; {business.city}</>}</span></span>
+          <ArrowRight className="search-result-arrow" size={25} strokeWidth={1.3} aria-hidden="true" />
+        </button>)}</div>}
+      </div>
+      <aside className="search-editorial"><h2>Start close<br />to home.</h2><p>Find neighbourhood businesses, makers and studios{city ? ` in ${city}` : ' near you'}.</p><img src="/images/search-still-life.png" alt="Handmade pottery and white blossoms in warm afternoon light" /></aside>
+    </div>
+  </section>
 }
 
 function AboutLocalyzePage({ isBusiness, onNavigate }) {
@@ -1588,19 +1778,19 @@ function AboutLocalyzePage({ isBusiness, onNavigate }) {
 }
 
 function AuthBrand() {
-  return <div className="auth-brand"><Camera size={28} strokeWidth={1.8} /><span>localyze</span></div>
+  return <div className="auth-brand"><Camera size={28} strokeWidth={1.8} /><span>Localyze</span></div>
 }
 
 function AuthPage({ onAuthenticated }) {
   const [mode, setMode] = useState('login')
-  const [accountType, setAccountType] = useState('user')
+  const [accountType, setAccountType] = useState('business')
   const [registerStep, setRegisterStep] = useState('type')
   const [form, setForm] = useState({ name: '', businessName: '', username: '', email: '', password: '', industry: '', interests: '', city: '' })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const isBusiness = accountType === 'business'
-  const updateField = (event) => setForm({ ...form, [event.target.name]: event.target.value })
+  const updateField = (event) => { const { name, value } = event.target; setForm((previous) => ({ ...previous, [name]: value })) }
 
   async function submitLogin(event) {
     event.preventDefault()
@@ -1650,19 +1840,20 @@ function AuthPage({ onAuthenticated }) {
   }
 
   if (mode === 'register' && registerStep === 'type') {
-    return <div className="auth-page"><AuthBrand /><section className="auth-panel"><button className="back-link" onClick={() => setMode('login')}><ArrowLeft size={16} /> Back to login</button><p className="eyebrow">Create your place</p><h1>How will you use Localyze?</h1><p className="auth-intro">Choose the path that fits you. You can always update your profile later.</p><div className="account-choice-grid"><button className={`account-choice ${isBusiness ? 'selected' : ''}`} onClick={() => setAccountType('business')}><Building2 size={27} /><strong>Business</strong><span>Share your work and connect with collaborators.</span></button><button className={`account-choice ${!isBusiness ? 'selected' : ''}`} onClick={() => setAccountType('user')}><UserRound size={27} /><strong>Consumer</strong><span>Discover people, places, and ideas around you.</span></button></div><button className="primary-button auth-submit" onClick={() => setRegisterStep('details')}>Continue <ArrowLeft className="rotate-icon" size={16} /></button></section></div>
+    return <div className={`auth-page desktop-ui desktop-auth ${isBusiness ? 'business-ui' : 'consumer-ui'}`}><AuthBrand /><AuthStory isBusiness={isBusiness} /><section className="auth-panel"><button className="back-link" onClick={() => setMode('login')}><ArrowLeft size={16} /> Back to login</button><p className="eyebrow">Create your place</p><h1>How will you use Localyze?</h1><p className="auth-intro">Choose the path that fits you. You can always update your profile later.</p><div className="account-choice-grid"><button className={`account-choice ${isBusiness ? 'selected' : ''}`} aria-pressed={isBusiness} onClick={() => { setAccountType('business'); setError('') }}><Building2 size={27} /><strong>Business</strong><span>Share your work and connect with collaborators.</span></button><button className={`account-choice ${!isBusiness ? 'selected' : ''}`} aria-pressed={!isBusiness} onClick={() => { setAccountType('user'); setError('') }}><UserRound size={27} /><strong>Consumer</strong><span>Discover people, places, and ideas around you.</span></button></div><button className="primary-button auth-submit" onClick={() => setRegisterStep('details')}>Continue <ArrowLeft className="rotate-icon" size={16} /></button></section></div>
   }
 
   if (mode === 'register') {
-    return <div className="auth-page"><AuthBrand /><section className="auth-panel"><button className="back-link" onClick={() => setRegisterStep('type')}><ArrowLeft size={16} /> Change account type</button><p className="eyebrow">{isBusiness ? 'Business details' : 'Consumer details'}</p><h1>Create your account</h1><p className="auth-intro">A few details and you’re ready to find your local signal.</p><form className="auth-form" onSubmit={submitRegistration}>{isBusiness ? <><label>Business name<input name="businessName" value={form.businessName} onChange={updateField} required placeholder="Common Ground" /></label><label>Industry<input name="industry" value={form.industry} onChange={updateField} required placeholder="Hospitality, design, retail..." /></label></> : <><label>Your name<input name="name" value={form.name} onChange={updateField} required placeholder="Avery Morgan" /></label><label>Interests <span>(optional)</span><input name="interests" value={form.interests} onChange={updateField} placeholder="food, design, music" /></label></>}<label>Username <span>(lowercase letters, numbers, periods, underscores)</span><input name="username" value={form.username} onChange={updateField} required minLength="3" maxLength="30" pattern="[a-z0-9_.]+" placeholder="commonground" /></label><label>City <span>(your local ecosystem)</span><CitySelect value={form.city} onChange={updateField} /></label><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} minLength="6" required placeholder="At least 6 characters" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Creating account...' : 'Create account'}</button></form></section></div>
+    return <div className={`auth-page desktop-ui desktop-auth ${isBusiness ? 'business-ui' : 'consumer-ui'}`}><AuthBrand /><AuthStory isBusiness={isBusiness} /><section className="auth-panel"><button className="back-link" onClick={() => setRegisterStep('type')}><ArrowLeft size={16} /> Change account type</button><p className="eyebrow">{isBusiness ? 'Business details' : 'Consumer details'}</p><h1>Create your account</h1><p className="auth-intro">A few details and you’re ready to find your local signal.</p><form className="auth-form" onSubmit={submitRegistration}>{isBusiness ? <><label>Business name<input name="businessName" value={form.businessName} onChange={updateField} required placeholder="Common Ground" /></label><label>Industry<input name="industry" value={form.industry} onChange={updateField} required placeholder="Hospitality, design, retail..." /></label></> : <><label>Your name<input name="name" value={form.name} onChange={updateField} required placeholder="Avery Morgan" /></label><label>Interests <span>(optional)</span><input name="interests" value={form.interests} onChange={updateField} placeholder="food, design, music" /></label></>}<label>Username <span>(lowercase letters, numbers, periods, underscores)</span><input name="username" value={form.username} onChange={updateField} required minLength="3" maxLength="30" pattern="[a-z0-9_.]+" placeholder="commonground" /></label><label>City <span>(your local ecosystem)</span><CitySelect value={form.city} onChange={updateField} /></label><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} minLength="6" required placeholder="At least 6 characters" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Creating account...' : 'Create account'}</button></form></section></div>
   }
 
-  return <div className="auth-page"><AuthBrand /><section className="auth-panel"><p className="eyebrow">Welcome to your local signal</p><h1>Find your people.</h1><p className="auth-intro">A thoughtful place for discovering businesses, ideas, and collaborations close to home.</p><div className="account-switcher"><button className={isBusiness ? 'selected' : ''} onClick={() => setAccountType('business')}><Building2 size={16} /> Business</button><button className={!isBusiness ? 'selected' : ''} onClick={() => setAccountType('user')}><UserRound size={16} /> Consumer</button></div><form className="auth-form" onSubmit={submitLogin}><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} required placeholder="Your password" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Logging in...' : 'Log in'}</button></form><p className="auth-footer">New to Localyze? <button onClick={() => { setMode('register'); setError('') }}>Create an account</button></p></section><p className="auth-legal">By continuing, you agree to Localyze’s terms and community guidelines.</p></div>
+  return <div className={`auth-page desktop-ui desktop-auth ${isBusiness ? 'business-ui' : 'consumer-ui'}`}><AuthBrand /><AuthStory isBusiness={isBusiness} /><section className="auth-panel"><p className="eyebrow">{isBusiness ? 'Your local business, connected' : 'Welcome to your local signal'}</p><h1>{isBusiness ? 'Welcome back.' : 'Find your people.'}</h1><p className="auth-intro">{isBusiness ? 'Log in to your business account.' : 'A thoughtful place for discovering businesses, ideas, and collaborations close to home.'}</p><div className="account-switcher"><button className={isBusiness ? 'selected' : ''} aria-pressed={isBusiness} onClick={() => { setAccountType('business'); setError('') }}><Building2 size={16} /> Business</button><button className={!isBusiness ? 'selected' : ''} aria-pressed={!isBusiness} onClick={() => { setAccountType('user'); setError('') }}><UserRound size={16} /> Consumer</button></div><form className="auth-form" onSubmit={submitLogin}><label>Email<input type="email" name="email" value={form.email} onChange={updateField} required placeholder="you@example.com" /></label><label>Password<input type="password" name="password" value={form.password} onChange={updateField} required placeholder="Your password" /></label>{error && <p className="auth-message">{error}</p>}<button className="primary-button auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Logging in...' : 'Log in'}</button></form><p className="auth-footer">New to Localyze? <button onClick={() => { setMode('register'); setError('') }}>Create an account</button></p></section><p className="auth-legal">By continuing, you agree to Localyze’s terms and community guidelines.</p></div>
 }
 
 function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('localyze_token'))
   const [activePage, setActivePage] = useState('Home')
+  const [createType, setCreateType] = useState(null)
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -1674,12 +1865,15 @@ function App() {
   const [businessProfileHistory, setBusinessProfileHistory] = useState([])
   const isBusiness = getAccountRole() === 'business'
   const userId = decodeToken().id
-  const visibleNavItems = navItems.filter((item) => !item.businessOnly || isBusiness)
+  const visibleNavItems = navItems.filter((item) => (!item.businessOnly || isBusiness) && (!item.consumerOnly || !isBusiness))
   const onLogout = () => { localStorage.removeItem('localyze_token'); setAuthToken(null) }
-  const navigateTo = (label) => {
+  const navigateTo = (label, type = null) => {
+    if (label === 'Create') setCreateType(type)
     setViewingBusinessId(null)
     setBusinessProfileHistory([])
     setActivePage(label)
+    setShowMenu(false)
+    setShowSettings(false)
   }
   const openBusinessProfile = (businessId) => {
     if (viewingBusinessId && viewingBusinessId !== businessId) {
@@ -1757,23 +1951,28 @@ function App() {
   if (!authToken) return <AuthPage onAuthenticated={setAuthToken} />
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell desktop-ui ${isBusiness ? 'business-ui' : 'consumer-ui'} ${isBusiness && activePage === 'Home' && !viewingBusinessId ? 'business-home' : ''}`}>
       <aside className="sidebar">
-        <button className="brand" onClick={() => navigateTo('Home')} aria-label="Go home"><Camera size={27} strokeWidth={1.8} /><span>localyze</span></button>
+        <button className="brand" onClick={() => navigateTo('Home')} aria-label="Go home"><Camera size={27} strokeWidth={1.8} /><span>Localyze</span></button>
+        <p className="sidebar-label">{isBusiness ? "Business account" : "Your neighbourhood"}</p>
         <nav className="main-nav" aria-label="Main navigation">
-          {visibleNavItems.map(({ label, icon: Icon }) => (
+          {visibleNavItems.map(({ label, icon }) => {
+            const Icon = isBusiness && label === 'Notifications' ? Bell : isBusiness && label === 'Collaborations' ? Handshake : icon
+            return (
             <button key={label} className={`nav-item ${activePage === label && !viewingBusinessId ? 'active' : ''}`} onClick={() => navigateTo(label)}>
               <Icon size={22} strokeWidth={activePage === label ? 2.5 : 1.8} /><span>{label}</span>
               {label === 'Notifications' && <i className="notification-dot" />}
             </button>
-          ))}
+          )})}
         </nav>
+        {isBusiness && <button className="primary-button sidebar-create" onClick={() => navigateTo('Create')}><Pencil size={18} />Create a post</button>}
         <div className="sidebar-bottom">
+          <SidebarIdentity token={authToken} apiUrl={API_URL} isBusiness={isBusiness} onProfile={() => navigateTo('Profile')} />
           <div ref={settingsRef} className="settings-popover">
             <button className={`nav-item ${showSettings ? 'active' : ''}`} onClick={() => { setShowSettings(!showSettings); setShowMenu(false) }}><Settings size={21} /><span>Settings</span></button>
             {showSettings && <div className="more-menu"><button onClick={onLogout}><LogOut size={17} /> Log out</button></div>}
           </div>
-          <button className={`nav-item ${showMenu ? 'active' : ''}`} onClick={() => { setShowMenu(!showMenu); setShowSettings(false) }}><Menu size={22} /><span>More</span></button>
+          <button className={`nav-item ${showMenu ? 'active' : ''}`} onClick={() => { setShowMenu(!showMenu); setShowSettings(false) }}>{isBusiness ? <Ellipsis size={22} /> : <Menu size={22} />}<span>More</span></button>
           {showMenu && <div className="more-menu">{!isBusiness && <button onClick={() => { navigateTo('Saved'); setShowMenu(false) }}><Bookmark size={17} /> Saved</button>}<button onClick={() => { navigateTo('About'); setShowMenu(false) }}><Sparkles size={17} /> About Localyze</button></div>}
         </div>
       </aside>
@@ -1785,8 +1984,9 @@ function App() {
         ) : activePage === 'Home' ? (
           <div className="feed-layout">
             <section className="feed-column">
-              <div className="feed-heading"><div><p className="eyebrow">{isBusiness ? 'Your network' : 'Your local signal'}</p><h1>{isBusiness ? 'Fresh from your connections' : 'Fresh from your people'}</h1></div><button className="filter-button"><Sparkles size={16} /> For you</button></div>
-              <StoriesRow token={authToken} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} />
+              <StoriesRow token={authToken} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} userId={userId} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />
+              <div className="feed-heading"><div><p className="eyebrow">{isBusiness ? 'Your network' : 'Your local signal'}</p><h1>{isBusiness ? <>Fresh from your <em>connections.</em></> : <>A little closer to <em>home.</em></>}</h1>{isBusiness && <p className="feed-intro">Local businesses. Shared possibilities.</p>}</div></div>
+
               {isLoading ? (
                 <div className="loading-state">Finding the latest local stories...</div>
               ) : loadError ? (
@@ -1797,6 +1997,7 @@ function App() {
                 <div className="empty-state"><Sparkles size={24} /><p>No posts from your connections yet.</p></div>
               ) : posts.map((post) => (
                 <PostCard
+                  homeCard={isBusiness}
                   post={post}
                   token={authToken}
                   userId={userId}
@@ -1808,12 +2009,12 @@ function App() {
               ))}
             </section>
             <aside className="right-rail">{isBusiness ? (
-              <><div className="suggestion-header"><strong>Grow your network</strong></div><p className="dashboard-intro">Visit another business's profile from a post in your feed to connect or request a collaboration.</p></>
+              <NetworkRail onNavigate={navigateTo}><RecommendedConnections token={authToken} onSelectBusiness={openBusinessProfile} /></NetworkRail>
             ) : (
-              <><AccountSummary token={authToken} isBusiness={isBusiness} /><div className="suggestion-header"><strong>Businesses to follow</strong></div><SuggestedBusinesses token={authToken} onSelectBusiness={openBusinessProfile} /></>
-            )}<p className="rail-footer">About · Help · Press · API · Jobs · Privacy<br />© 2026 LOCALYZE</p></aside>
+              <div className="discovery-rail"><h2>Discover your street.</h2><SuggestedBusinesses token={authToken} onSelectBusiness={openBusinessProfile} /><div className="organic-rule" aria-hidden="true">&#8767;</div><h2>Your neighbourhood</h2><p>A closer, kinder corner of the world. Find local makers, familiar faces, and your next favourite place.</p><button className="editorial-link" onClick={() => navigateTo('Explore')}>Explore nearby <ArrowRight size={18} /></button></div>
+            )}<p className="rail-footer"><button onClick={() => navigateTo('About')}>About Localyze</button><br />© {new Date().getFullYear()} LOCALYZE</p></aside>
           </div>
-        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} /> : activePage === 'Explore' ? <ExplorePage token={authToken} userId={userId} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} /> : activePage === 'Saved' ? (!isBusiness && <SavedPage token={authToken} userId={userId} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'About' ? <AboutLocalyzePage isBusiness={isBusiness} onNavigate={navigateTo} /> : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} /> : <ProfilePage token={authToken} userId={userId} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Create' ? <AddPostFlow token={authToken} onPublished={() => setActivePage('Home')} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} /> : null}
+        ) : activePage === 'Search' ? <SearchPage token={authToken} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} /> : activePage === 'Explore' ? <ExplorePage token={authToken} userId={userId} isBusiness={isBusiness} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} /> : activePage === 'Saved' ? (!isBusiness && <SavedPage token={authToken} userId={userId} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'About' ? <AboutLocalyzePage isBusiness={isBusiness} onNavigate={navigateTo} /> : activePage === 'Notifications' ? <NotificationsPage token={authToken} isBusiness={isBusiness} onExplore={() => setActivePage('Home')} /> : activePage === 'Profile' ? (isBusiness ? <BusinessProfilePage businessId={userId} token={authToken} viewerIsBusiness={isBusiness} viewerId={userId} /> : <ProfilePage token={authToken} userId={userId} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} savedPostIds={savedPostIds} onSaveChange={handleSaveChange} />) : activePage === 'Create' ? <AddPostFlow key={createType || 'choose'} initialType={createType} token={authToken} onPublished={() => { navigateTo('Home'); loadPosts() }} /> : activePage === 'Collaborations' ? <CollaborationsPage token={authToken} onExplore={() => setActivePage('Home')} onSelectBusiness={openBusinessProfile} /> : null}
       </main>
     </div>
   )

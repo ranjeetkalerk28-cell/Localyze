@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
+  getRecommendations,
   sendConnectionRequest,
   getConnectionStatus,
   getReceivedConnectionRequests,
@@ -10,6 +11,7 @@ const {
 const { protect, requireRole } = require('../middleware/authMiddleware');
 
 router.use(protect, requireRole('business'));
+router.get('/recommendations', getRecommendations);
 
 router.get('/requests/received', getReceivedConnectionRequests);
 router.put('/:id', respondToConnectionRequest);

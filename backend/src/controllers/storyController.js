@@ -28,6 +28,24 @@ const getStories = async (req, res) => {
       ? { $in: ['consumers_and_businesses', null] }
       : { $in: ['consumers_and_businesses', 'businesses_only', null] };
 
+    // Opt-in offer rail: one nearest-expiring active offer per related business.
+    // Group before limiting so one prolific business cannot crowd out the rail.
+    if (req.query.offers === 'true') {
+      const offers = await Post.aggregate([
+        { $match: {
+          business: { $in: businessIds }, visibility, status: 'active',
+          postType: 'offer', ...visibleNowFilter(), expiresAt: { $gt: new Date() },
+        } },
+        { $sort: { expiresAt: 1, _id: 1 } },
+        { $group: { _id: '$business', offer: { $first: '$$ROOT' } } },
+        { $replaceRoot: { newRoot: '$offer' } },
+        { $sort: { expiresAt: 1, _id: 1 } },
+        { $limit: 50 },
+      ]);
+      await Post.populate(offers, { path: 'business', select: 'businessName logoUrl industry' });
+      return res.json(offers.filter((offer) => offer.business));
+    }
+
     const posts = await Post.find({
       business: { $in: businessIds },
       visibility,
