@@ -20,6 +20,7 @@ export default function AuthPage({ onAuthenticated }) {
     name: '',
     businessName: '',
     username: '',
+    identifier: '',
     email: '',
     password: '',
     industry: '',
@@ -43,7 +44,7 @@ export default function AuthPage({ onAuthenticated }) {
       const response = await fetch(`${API_URL}/${isBusiness ? 'business' : 'user'}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password }),
+        body: JSON.stringify({ identifier: form.identifier, password: form.password }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.message || 'Unable to log in')
@@ -293,14 +294,14 @@ export default function AuthPage({ onAuthenticated }) {
         </div>
         <form className="auth-form" onSubmit={submitLogin}>
           <label>
-            Email *
+            Email ID or Username *
             <input
-              type="email"
-              name="email"
-              value={form.email}
+              type="text"
+              name="identifier"
+              value={form.identifier}
               onChange={updateField}
               required
-              placeholder="you@example.com"
+              placeholder="ID or Username"
             />
           </label>
           <label>

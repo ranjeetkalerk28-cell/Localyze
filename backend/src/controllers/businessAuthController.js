@@ -39,8 +39,12 @@ const registerBusiness = async (req, res) => {
 // @route   POST /api/business/auth/login
 const loginBusiness = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const business = await Business.findOne({ email });
+    const { identifier, password } = req.body;
+    const normalized = (identifier || '').toLowerCase().trim();
+
+    const business = await Business.findOne({ 
+      $or: [{ email: normalized }, { username: normalized }],
+    });
 
     if (business && (await business.matchPassword(password))) {
       res.json({
@@ -51,7 +55,7 @@ const loginBusiness = async (req, res) => {
         token: generateToken(business._id, 'business'),
       });
     } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+      res.status(401).json({ message: 'Invalid credentials' });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
