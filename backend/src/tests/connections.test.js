@@ -13,6 +13,37 @@ const send = (sender, recipient) =>
 const respond = (recipient, id, status) =>
   request(app).put(`/api/connections/${id}`).set('Authorization', `Bearer ${recipient.token}`).send({ status });
 
+test('legacy pairs allow indexing, new requests and collaboration acceptance in either direction', async () => {
+  const first = await createBusiness();
+  const second = await createBusiness();
+  const third = await createBusiness();
+  await Connection.init();
+  await Connection.collection.dropIndex('unique_keyed_open_connection_pair');
+  await Connection.collection.insertMany([
+    { requester: second.business._id, recipient: first.business._id, status: 'pending' },
+    { requester: third.business._id, recipient: first.business._id, status: 'accepted' },
+  ]);
+  await Connection.createIndexes();
+  await send(second, third).expect(201);
+  const duplicate = await send(first, second).expect(400);
+  expect(duplicate.body.status).toBe('pending_received');
+
+  const propose = () => request(app).post('/api/collaborations')
+    .set('Authorization', `Bearer ${first.token}`).send({ recipientId: second.business.id, message: 'Joint offers' });
+  const responses = await Promise.all([propose(), propose()]);
+  expect(responses.map(r => r.status).sort()).toEqual([200, 201]);
+  expect(responses[0].body._id).toBe(responses[1].body._id);
+  const profile = () => request(app).get(`/api/businesses/${second.business.id}`)
+    .set('Authorization', `Bearer ${first.token}`).expect(200);
+  expect((await profile()).body).toMatchObject({ collaborationRequested: true, connectionStatus: 'pending_received' });
+  await request(app).put(`/api/collaborations/${responses[0].body._id}`)
+    .set('Authorization', `Bearer ${second.token}`).send({ status: 'active' }).expect(200);
+  expect((await profile()).body).toMatchObject({
+    collaborationRequested: false, connectionStatus: 'connected', connectionsCount: 1, collaborationsCount: 1,
+  });
+  expect(await Connection.countDocuments()).toBe(3);
+});
+
 test('simultaneous requests in either direction create only one open connection', async () => {
   const first = await createBusiness();
   const second = await createBusiness();

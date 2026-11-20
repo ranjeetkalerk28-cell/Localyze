@@ -4,6 +4,7 @@ import App from './App'
 import './styles.css'
 import './desktop.css'
 import './business-home.css'
+import './responsive.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

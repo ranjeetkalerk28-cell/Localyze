@@ -49,7 +49,7 @@ There are two account types. The account role changes the feed, navigation, prof
 
 ## 3. Information architecture
 
-The authenticated app is a single-page experience. The current implementation switches views in React state rather than navigating between URL routes.
+The app uses React Router. The sidebar links, mobile navigation and business profiles have URLs and support browser Back, Forward and refresh. After login, a signed-out visitor returns to the requested page.
 
 ### Main navigation
 
@@ -63,7 +63,7 @@ The authenticated app is a single-page experience. The current implementation sw
 - **More** — opens Saved (consumer only) and About Localyze.
 - **Settings** — currently exposes Log out.
 
-Selecting a business from a post, story-style shortcut, or search result opens its profile inside the app. A back control returns to the previous business profile or the underlying view.
+The Profile link opens the signed-in consumer’s private profile or the business owner’s canonical profile. Business names and avatars link to `/businesses/:businessId`. Search stores its filters in the URL so returning from a profile restores the results.
 
 ## 4. Pages and key UI elements
 
@@ -86,7 +86,7 @@ Home is the primary activity feed.
 
 - Consumer heading: “Fresh from your people”; the feed is based on followed-business posts.
 - Business heading: “Fresh from your connections”; the feed shows posts from connected businesses.
-- A horizontal stories-style row provides quick access to business profiles. It is not a separate story composer/viewer workflow.
+- The horizontal offer row opens an active offer. The business name and avatar in the offer link to the business profile.
 - Posts use the shared post card described below.
 - Consumer right rail shows an account summary and suggested businesses.
 - Business right rail prompts the member to visit business profiles to connect or request collaboration.
@@ -180,7 +180,7 @@ An in-app explainer presents the people/business/collaboration ecosystem and lin
 1. Register as a consumer with a city and optional interests, then log in.
 2. Browse Home for followed-business posts or Explore for broader local discovery.
 3. Search businesses by name/industry and city, or open a business profile from a post.
-4. Follow a business to build a local feed and see its profile/stories-style shortcut.
+4. Follow a business to see its feed posts and active offers on Home.
 5. Like or comment on posts; save useful posts to revisit them.
 6. Review saved/liked items on Profile or Saved; review business updates in Notifications.
 
@@ -207,15 +207,15 @@ An in-app explainer presents the people/business/collaboration ecosystem and lin
 - Successful login stores the JWT in browser local storage under `localyze_token`.
 - The token identifies account role and is sent to protected API endpoints.
 - A 401 response while loading Home logs the member out.
-- Log out is under Settings and clears the stored token.
+- Log out clears the stored token. Open Settings on desktop or More on mobile.
 
 ## 6. Design direction
 
 The existing visual language is warm, editorial, and community-oriented rather than a generic admin dashboard.
 
-- **Canvas:** warm off-white (`#f8f7f2`) with paper-like cards (`#fffefa`).
-- **Text:** charcoal (`#252525`) with muted warm gray secondary text.
-- **Accent:** coral (`#ee725e`) for emphasis and active engagement; blue (`#3578ad`) for links/secondary actions.
+- **Canvas:** charcoal (`#111113`) with dark cards (`#1e1f23`).
+- **Text:** warm white (`#f2f1ee`) with muted gray secondary text.
+- **Accent:** coral (`#ee725e`) for emphasis and active engagement; blue (`#9cbfe1`) for links/secondary actions.
 - **Typography:** expressive Georgia-style serif headings paired with a clean sans-serif for labels, metadata, and body copy.
 - **Surfaces:** subtle borders, soft shadows, rounded post cards, and generous whitespace; avoid dense dashboard chrome.
 - **Imagery:** business photography and logos are important to discovery. Preserve a clear fallback when no image is available.
@@ -231,7 +231,7 @@ Keep the distinction between the two account journeys visually clear while prese
 - Confirm destructive or relationship-ending actions before completing them.
 - Use clear form labels, required/optional hints, inline validation, and actionable error text.
 - Keep keyboard focus visible, controls labelled, and dialogs dismissible and accessible.
-- On narrow screens, replace the fixed desktop sidebar with bottom navigation; hide the right rail and keep feed content readable.
+- On narrow screens, use bottom navigation, place secondary destinations and logout under More, and stack recommendations below the feed.
 - Stack forms and post-type choices on mobile; keep profile statistics, tabs, cards, and collaboration actions usable at small widths.
 - Design for empty networks as a normal starting state: suggest a meaningful next action instead of presenting a dead end.
 
@@ -268,9 +268,17 @@ frontend/
 ├── package.json
 ├── vite.config.js
 └── src/
-    ├── App.jsx        # app shell, account flows, pages, shared UI and API interactions
-    ├── main.jsx       # React entry point
-    └── styles.css     # visual system, layouts, components and responsive rules
+    ├── App.jsx           # URL routes and access by account role
+    ├── main.jsx          # React entry point and stylesheets
+    ├── account/          # Session, account profile, saved post state
+    ├── layout/           # Sidebar and mobile navigation
+    ├── pages/            # One folder per feature, shared by both roles
+    ├── components/       # Reusable post cards, links, buttons and dialogs
+    ├── lib/              # API and date helpers
+    ├── styles.css        # Component foundations
+    ├── desktop.css       # Shared theme and desktop layouts
+    ├── business-home.css # Business feed layout
+    └── responsive.css    # Compact layouts and mobile navigation
 ```
 
 Run the frontend from this directory:
@@ -281,3 +289,5 @@ npm run dev
 ```
 
 Vite serves the frontend at `http://localhost:5173`. Start the backend separately at `http://localhost:5000` for authenticated data and API-backed flows. For a deployed frontend, set `VITE_API_BASE_URL` to the backend API base URL.
+
+The frontend host must serve `index.html` for client routes such as `/search` and `/businesses/:businessId`. Vite dev and preview provide this fallback. Keep asset and API requests routed to their respective services.

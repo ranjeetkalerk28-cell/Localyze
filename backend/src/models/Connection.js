@@ -19,9 +19,9 @@ const connectionSchema = new mongoose.Schema(
 connectionSchema.index({ requester: 1, status: 1 });
 connectionSchema.index({ recipient: 1, status: 1 });
 connectionSchema.index({ pairKey: 1 }, {
-  name: 'unique_open_connection_pair',
+  name: 'unique_keyed_open_connection_pair',
   unique: true,
-  partialFilterExpression: { status: { $in: ['pending', 'accepted'] } },
+  partialFilterExpression: { pairKey: { $type: 'string' }, status: { $in: ['pending', 'accepted'] } },
 });
 
 connectionSchema.pre('validate', function () {
@@ -38,11 +38,23 @@ connectionSchema.set('toJSON', {
 
 connectionSchema.statics.pairKey = pairKey;
 
+// Older records only have participant IDs. Match both generations on reads and upgrades.
+connectionSchema.statics.openPair = (first, second) => ({
+  status: { $in: ['pending', 'accepted'] },
+  $or: [{ requester: first, recipient: second }, { requester: second, recipient: first }],
+});
+
+connectionSchema.statics.viewerStatus = function (connection, viewer) {
+  if (!connection) return 'none';
+  if (connection.status === 'accepted') return 'connected';
+  return connection.requester.equals(viewer) ? 'pending_sent' : 'pending_received';
+};
+
 connectionSchema.statics.acceptForCollaboration = async function (requester, recipient, session) {
   const key = pairKey(requester, recipient);
-  const filter = { pairKey: key, status: { $in: ['pending', 'accepted'] } };
+  const filter = this.openPair(requester, recipient);
   const update = {
-    $set: { status: 'accepted' },
+    $set: { status: 'accepted', pairKey: key },
     $setOnInsert: { requester, recipient },
   };
   await this.updateOne(filter, update, { upsert: true, session });

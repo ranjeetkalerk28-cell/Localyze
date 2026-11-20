@@ -1,0 +1,110 @@
+/* The sidebar becomes a four-destination tab bar with the rest under More. */
+.more-menu .mobile-menu-item { display: none; }
+
+@media (max-width: 800px) {
+  .desktop-ui { --gutter: clamp(16px, 4vw, 32px); }
+  .desktop-ui .main-content, .desktop-ui:has(.collaborations-page, .search-page) .main-content {
+    margin: 0 auto; max-width: 680px; padding: 0 var(--gutter) calc(96px + env(safe-area-inset-bottom));
+  }
+  .desktop-ui .mobile-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; margin-bottom: 22px; border-bottom: 1px solid var(--line);
+  }
+  .mobile-header .brand { font: bold italic 34px/1.15 Georgia, serif; padding: 0; }
+  .mobile-account-role { margin-left: auto; padding-right: 6px; color: var(--muted); font-size: 11px; }
+  .mobile-header .icon-button { width: 44px; height: 44px; display: grid; place-items: center; }
+  .mobile-header .icon-button.active { color: var(--coral); }
+  .desktop-ui .sidebar {
+    position: fixed; inset: auto 0 0; height: auto; width: 100%; display: flex; flex-direction: row;
+    padding: 6px max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    border-top: 1px solid var(--line); background: #171719; z-index: 5;
+  }
+  .desktop-ui .sidebar :is(.brand, .sidebar-label, .sidebar-create, .sidebar-identity, .settings-toggle, .secondary-nav) { display: none; }
+  .desktop-ui .main-nav { flex: 4; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+  .desktop-ui .sidebar-bottom { flex: 1; display: flex; margin: 0; }
+  .desktop-ui .sidebar .nav-item:not(.secondary-nav, .settings-toggle) {
+    flex-direction: column; justify-content: center; gap: 3px; padding: 5px 0; min-height: 48px;
+    font-size: 11px; border-radius: 12px;
+  }
+  .desktop-ui .more-toggle.has-current-page { background: #2b1e1c; color: #f49180; }
+  .desktop-ui .more-menu {
+    bottom: calc(100% + 14px); right: 4px; width: min(230px, 85vw); max-height: 65dvh; overflow-y: auto;
+  }
+  .more-menu .mobile-menu-item { display: flex; }
+  .more-menu :is(a, button) { min-height: 44px; border-radius: 8px; }
+  .more-menu [aria-current="page"] { color: var(--coral); }
+
+  .desktop-ui .feed-layout { display: block; }
+  .desktop-ui .feed-column { min-width: 0; }
+  .desktop-ui .right-rail { position: static; border-top: 1px solid var(--line); margin-top: 28px; padding-top: 24px; }
+  .desktop-ui .stories-heading { gap: 10px; }
+  .desktop-ui .stories-heading h2 { font-size: 21px; line-height: 1.2; }
+  .desktop-ui .story { flex-basis: 72px; }
+  .desktop-ui .story-ring { width: 66px; height: 66px; }
+  .desktop-ui .story-ring .avatar { width: 56px; height: 56px; flex-basis: auto; }
+  .desktop-ui .feed-heading { margin: 16px 0 20px; }
+  .desktop-ui .post-card { padding: 10px; overflow-wrap: anywhere; }
+  .desktop-ui .has-photo > .post-copy { margin: -15px 6px 0; }
+  .desktop-ui .post-copy { padding: 12px; }
+  .business-home .feed-heading h1, .business-home .stories-heading h2 { font-weight: 600; }
+  .business-home .story .story-ring { border-color: #e5ded3; padding: 0; }
+  .business-home .story-ring .avatar { width: 100%; height: 100%; }
+  .business-home .feed-column > .post-card { border-radius: 14px; padding: 12px; }
+  .business-home .post-image { border-radius: 16px; }
+  .business-home .feed-column .post-copy h2 { font-weight: 600; }
+  .desktop-ui .network-rail h2 { margin-top: 16px; }
+  .desktop-ui .rail-wave { width: 100%; height: 12px; margin-top: 24px; color: var(--coral); }
+  .desktop-ui .explore-businesses { margin-top: 18px; }
+
+  .desktop-ui :is(.post-flow, .notifications-page, .business-profile-page, .consumer-profile-page) { padding: 0; }
+  .desktop-ui :is(.search-workspace, .collaborations-page, .create-details-layout, .create-review-layout) { display: block; }
+  .desktop-ui :is(.search-editorial, .collaborations-editorial, .create-context) { display: none; }
+  .desktop-ui .search-controls { flex-wrap: wrap; padding: 4px 12px; }
+  .desktop-ui .search-query-field { flex-basis: 100%; }
+  .desktop-ui .search-city-field { width: 100%; margin: 0; padding: 0; border-left: 0; border-top: 1px solid var(--line); }
+  .desktop-ui .search-result { gap: 12px; }
+  .desktop-ui .search-result .avatar, .desktop-ui .collaboration-portrait .avatar { width: 54px; height: 54px; flex-basis: 54px; }
+  .desktop-ui .search-result strong { font-size: 20px; }
+  .desktop-ui .search-result-copy { min-width: 0; overflow-wrap: anywhere; }
+  .desktop-ui .notification-item { flex-wrap: wrap; gap: 12px; }
+  .desktop-ui .notification-item > div:nth-child(2) { flex-basis: calc(100% - 58px); }
+  .desktop-ui .collaborations-page .collaboration-row { grid-template-columns: 54px minmax(0, 1fr); }
+  .desktop-ui .collaboration-response, .desktop-ui .collaboration-error { grid-column: 2; }
+
+  .desktop-ui :is(.business-profile-page, .consumer-profile-page) > .profile-card { grid-template-columns: 72px minmax(0, 1fr); gap: 14px; }
+  .desktop-ui :is(.business-profile-page, .consumer-profile-page) > .profile-card .avatar-large { width: 72px; height: 72px; }
+  .desktop-ui :is(.business-profile-page, .consumer-profile-page) > .profile-card > div:nth-child(2) strong { font-size: 26px; overflow-wrap: anywhere; }
+  .desktop-ui :is(.business-profile-page, .consumer-profile-page) > .profile-card > button { grid-column: 1/-1; justify-self: start; margin: 0; }
+  .desktop-ui :is(.business-profile-page, .consumer-profile-page) > .profile-stats { margin: 18px 0 24px; justify-content: space-between; gap: 8px; }
+  .desktop-ui :is(.business-profile-page, .consumer-profile-page) .profile-tabs { gap: 14px; overflow-x: auto; }
+  .desktop-ui .profile-post-open { grid-template-columns: 38% minmax(0, 1fr); }
+  .desktop-ui .profile-post-card strong { font-size: 19px; overflow-wrap: anywhere; }
+  .desktop-ui .empty-state { padding: 30px 16px; }
+
+  .desktop-ui .create-review-summary { position: static; border: 0; border-top: 1px solid var(--line); margin-top: 22px; padding: 22px 0 0; }
+  .desktop-ui .create-post-page .post-type-choice { gap: 12px; padding-right: 12px; grid-template-columns: 24% minmax(0,1fr) 18px; }
+  .desktop-ui .create-post-page .post-type-description strong { font-size: 22px; }
+  .desktop-ui .create-post-page .flow-steps li:not(:last-child)::after { width: 12px; margin: 0 6px; }
+  .desktop-ui .create-post-page .flow-steps li { gap: 5px; }
+  .desktop-ui .about-hero-art { height: clamp(150px, 44vw, 260px); }
+  .desktop-ui .about-steps, .desktop-ui .about-loop { grid-template-columns: 1fr; gap: 16px; }
+
+  .desktop-ui .offer-viewer { padding: 12px; }
+  .desktop-ui .offer-viewer-stage { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .desktop-ui .offer-viewer-post { grid-row: 1; grid-column: 1/-1; max-height: 65dvh; }
+  .offer-viewer-stage > .offer-arrow:last-child { justify-self: end; }
+  .desktop-ui .offer-viewer .post-card.has-photo { display: flex; }
+  .desktop-ui .offer-viewer .has-photo > .post-image { height: auto; min-height: 0; max-height: 36dvh; }
+  .desktop-ui .comments-dialog[open]:has(.comments-photo) { display: flex; }
+  .desktop-ui .comments-photo { display: none; }
+  .desktop-ui :is(.post-edit-dialog, .comments-dialog, .business-post-dialog) { max-width: 94vw; }
+  .desktop-ui .post-edit-dialog { padding: 18px; }
+
+  .desktop-auth { display: block; min-height: 100dvh; padding: 28px var(--gutter) 40px; }
+  .desktop-auth .auth-brand, .desktop-auth .auth-panel, .desktop-auth .auth-legal { max-width: 480px; margin-inline: auto; }
+  .desktop-auth .auth-brand { margin-bottom: 28px; font-size: 38px; }
+  .desktop-auth .auth-story { display: none; }
+  .desktop-auth .auth-panel { padding: 12px 0; }
+  .desktop-auth:has(input[name=username]) .auth-form { grid-template-columns: minmax(0, 1fr); }
+  .desktop-ui input:not([type=file]), .desktop-ui select, .desktop-ui textarea { font-size: 16px; }
+}

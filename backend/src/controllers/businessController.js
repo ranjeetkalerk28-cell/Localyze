@@ -40,13 +40,23 @@ const getBusinessById = async (req, res) => {
     if (!business) return res.status(404).json({ message: 'Business not found' });
 
     const acceptedEitherDirection = { status: 'accepted', $or: [{ requester: id }, { recipient: id }] };
-    const [followersCount, connectionsCount, collaborationsCount] = await Promise.all([
+    const viewer = req.business?._id;
+    const otherBusiness = viewer && !viewer.equals(business._id);
+    const [followersCount, connectionsCount, collaborationsCount, connection, pendingRequest] = await Promise.all([
       Follow.countDocuments({ business: id }),
       Connection.countDocuments(acceptedEitherDirection),
-      Collaboration.countDocuments(acceptedEitherDirection),
+      Collaboration.countDocuments({ ...acceptedEitherDirection, status: { $in: ['accepted', 'active', 'completed'] } }),
+      otherBusiness && Connection.findOne(Connection.openPair(viewer, id)),
+      otherBusiness && Collaboration.exists({ requester: viewer, recipient: id, status: 'pending' }),
     ]);
 
-    res.json({ ...business.toObject(), followersCount, connectionsCount, collaborationsCount });
+    res.json({
+      ...business.toObject(), followersCount, connectionsCount, collaborationsCount,
+      ...(otherBusiness && {
+        connectionStatus: Connection.viewerStatus(connection, viewer),
+        collaborationRequested: Boolean(pendingRequest),
+      }),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

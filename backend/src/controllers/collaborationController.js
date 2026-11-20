@@ -12,24 +12,32 @@ const sendCollaborationRequest = async (req, res) => {
   try {
     const { recipientId, message } = req.body;
 
-    if (recipientId === req.business._id.toString()) {
+    if (req.business._id.equals(recipientId)) {
       return res.status(400).json({ message: 'Cannot send a request to yourself' });
     }
 
-    const existing = await Collaboration.findOne({
+    await Collaboration.init();
+    const pending = {
       requester: req.business._id,
       recipient: recipientId,
       status: 'pending',
-    });
+    };
+    const existing = await Collaboration.findOne(pending);
     if (existing) {
-      return res.status(400).json({ message: 'Request already pending' });
+      return res.status(200).json(existing);
     }
 
-    const collaboration = await Collaboration.create({
-      requester: req.business._id,
-      recipient: recipientId,
-      message,
-    });
+    let collaboration;
+    try {
+      collaboration = await Collaboration.create({
+        ...pending, message, requestKey: `${req.business._id}:${recipientId.toLowerCase()}`,
+      });
+    } catch (error) {
+      if (error.code !== 11000 || !error.keyPattern?.requestKey) throw error;
+      const concurrent = await Collaboration.findOne(pending);
+      if (concurrent) return res.json(concurrent);
+      return res.status(409).json({ message: 'The request was already resolved. Refresh the profile for its current status.' });
+    }
 
     res.status(201).json(collaboration);
   } catch (error) {

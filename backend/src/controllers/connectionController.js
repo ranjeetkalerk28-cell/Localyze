@@ -28,12 +28,22 @@ const sendConnectionRequest = async (req, res) => {
     }
 
     await Connection.init();
-    const connection = await Connection.create({ requester: req.business._id, recipient: businessId });
-    res.status(201).json(connection);
-  } catch (error) {
-    if (error.code === 11000 && error.keyPattern?.pairKey) {
-      return res.status(400).json({ message: 'A connection already exists or is pending' });
+    const pair = Connection.openPair(req.business._id, businessId);
+    let existing = await Connection.findOne(pair);
+    if (!existing) {
+      try {
+        const connection = await Connection.create({ requester: req.business._id, recipient: businessId });
+        return res.status(201).json(connection);
+      } catch (error) {
+        if (error.code !== 11000 || !error.keyPattern?.pairKey) throw error;
+        existing = await Connection.findOne(pair);
+      }
     }
+    return res.status(400).json({
+      message: 'A connection already exists or is pending',
+      status: Connection.viewerStatus(existing, req.business._id),
+    });
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
@@ -44,23 +54,8 @@ const getConnectionStatus = async (req, res) => {
   try {
     const { businessId } = req.params;
 
-    const connection = await Connection.findOne({
-      status: { $in: ['pending', 'accepted'] },
-      $or: [
-        { requester: req.business._id, recipient: businessId },
-        { requester: businessId, recipient: req.business._id },
-      ],
-    });
-
-    let status = 'none';
-    if (connection) {
-      if (connection.status === 'accepted') status = 'connected';
-      else if (connection.status === 'pending') {
-        status = connection.requester.toString() === req.business._id.toString() ? 'pending_sent' : 'pending_received';
-      }
-    }
-
-    res.json({ status });
+    const connection = await Connection.findOne(Connection.openPair(req.business._id, businessId));
+    res.json({ status: Connection.viewerStatus(connection, req.business._id) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
