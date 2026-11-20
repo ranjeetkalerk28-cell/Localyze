@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, UserRound } from 'lucide-react'
+import { ArrowLeft, Building2, Eye, EyeOff, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { API_URL } from '../../lib/api'
 import CitySelect from '../../components/CitySelect'
@@ -29,6 +29,7 @@ export default function AuthPage({ onAuthenticated }) {
   })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const isBusiness = accountType === 'business'
   const updateField = (event) => {
@@ -236,15 +237,26 @@ export default function AuthPage({ onAuthenticated }) {
             </label>
             <label>
               Password *
-              <input
-                type="password"
-                name="password"
-                value={form.password}
-                onChange={updateField}
-                minLength="6"
-                required
-                placeholder="At least 6 characters"
-              />
+              <span className="auth-password-field">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={form.password}
+                  onChange={updateField}
+                  minLength="6"
+                  required
+                  placeholder="At least 6 characters"
+                />
+                <button
+                  className="auth-password-toggle"
+                  type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </span>
             </label>
             {error && <p className="auth-message">{error}</p>}
             <button className="primary-button auth-submit" disabled={isSubmitting}>
@@ -306,14 +318,25 @@ export default function AuthPage({ onAuthenticated }) {
           </label>
           <label>
             Password *
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={updateField}
-              required
-              placeholder="Your password"
-            />
+            <span className="auth-password-field">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={form.password}
+                onChange={updateField}
+                required
+                placeholder="Your password"
+              />
+              <button
+                className="auth-password-toggle"
+                type="button"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((visible) => !visible)}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </span>
           </label>
           {error && <p className="auth-message">{error}</p>}
           <button className="primary-button auth-submit" disabled={isSubmitting}>
