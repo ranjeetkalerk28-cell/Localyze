@@ -14,8 +14,6 @@ localyze review 1/
 ├── .gitignore
 ├── PROJECT_STATE.md
 ├── atlas-credentials.env
-├── backend.zip
-├── Claude Setup.exe
 ├── credentials.txt
 ├── backend/
 │   ├── .env
@@ -24,6 +22,9 @@ localyze review 1/
 │   ├── package.json
 │   ├── package-lock.json
 │   ├── README.md
+│   ├── vercel.json
+│   ├── api/
+│   │   └── index.js
 │   ├── scripts/
 │   │   └── resetDatabase.js
 │   └── src/
@@ -96,6 +97,7 @@ localyze review 1/
     ├── package.json
     ├── package-lock.json
     ├── README.md
+    ├── vercel.json
     ├── vite.config.js
     ├── public/
     │   └── images/
@@ -122,8 +124,10 @@ localyze review 1/
 
 ### Backend
 
-- `src/server.js` — Loads environment variables, connects to MongoDB, then starts Express on port 5000 by default.
-- `src/app.js` — Configures CORS and JSON parsing, mounts `/api` routes, and provides the health response at `/`.
+- `src/server.js` — Loads environment variables, connects to MongoDB, then starts Express on port 5000 by default. Used for local `npm run dev`/`npm start` only — not invoked on Vercel.
+- `src/app.js` — Configures CORS and JSON parsing, mounts `/api` routes, and provides the health response at `/`. Exports the bare Express app (no `app.listen`), so it can be reused as-is by both `server.js` (local) and `api/index.js` (Vercel serverless).
+- `api/index.js` — Vercel serverless function entry point; re-exports `src/app.js` unchanged. Added 2026-11-21 because Vercel's zero-config Node detection needs a handler under `api/` — deploying `vercel.json` alone with no `builds`/`api` folder left the backend with no function to route requests to, which is what was causing "Failed to fetch" in the deployed frontend regardless of CORS/env settings.
+- `vercel.json` (backend) — `regions: ["bom1"]` plus a catch-all `rewrites` rule sending every path (`/`, `/api/*`) to `api/index.js`, since the Express app itself expects to see those original paths for its own routing/health-check logic.
 - `src/config/db.js` — Opens the Mongoose connection using `MONGO_URI` and terminates startup on failure.
 - `src/config/cloudinary.js` — Configures the Cloudinary SDK from `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` and exports the ready-to-use client.
 - `src/constants/cities.js` — Static, curated list (~50) of Indian cities; the single source of truth for city validation (registration, profile updates) and the `/api/meta/cities` list the frontend's city dropdowns fetch. Standardizing on this exact list (rather than free-text city input) is what makes exact-match city filtering reliable.
@@ -143,8 +147,8 @@ localyze review 1/
 - `src/models/Follow.js` — Unique consumer-to-business relationship with indexes for follower and following lookups.
 - `src/models/Activity.js` — Append-only, timestamped consumer engagement log (`type`: `like`/`unlike`/`follow`/`unfollow`, plus optional `business`/`post` refs), indexed by `user`+`createdAt` and `business`+`createdAt`. Purely additive — records are written alongside the existing `Post.likes`/`Follow` writes, never replaces them — intended as the "recent activity" signal the future Explore page's ranking algorithm will read, since neither `Post.likes` (no per-like timestamp) nor `Follow` (a relationship record, overwritten/deleted on unfollow — not a history) can answer that on their own.
 - `src/models/Connection.js` — Bidirectional business-to-business relationship (`requester`/`recipient`/`status` enum `pending|accepted|rejected`) with a canonical `pairKey` and partial unique index for open pairs. `openPair` and `viewerStatus` keep lookups/status role-aware and account for legacy records that do not yet have a key; collaboration acceptance upgrades or creates the matching connection.
-- `src/controllers/userAuthController.js` — Registers (requiring a valid `city` and a unique, format-validated `username`), logs in, and returns/updates the profile (`/me`) of consumer accounts (name, username, bio, interests, avatarUrl, city). Username changes on update are re-validated and re-checked for uniqueness (excluding the account's own document) before being applied.
-- `src/controllers/businessAuthController.js` — Registers (requiring a valid `city` and a unique, format-validated `username`), logs in, and returns/updates the profile (`/me`) of business accounts (businessName, username, industry, description, logoUrl, city). Same username validate-and-recheck-uniqueness behavior as `userAuthController.js` on update.
+- `src/controllers/userAuthController.js` — Registers (requiring a valid `city` and a unique, format-validated `username`), logs in by `email` **or** `username` (2026-11-20: `loginUser` now takes a single `identifier` field, lowercased/trimmed, matched against either field via `$or` — safe because both `email` and `username` already have `lowercase`/`trim` set on the schema), and returns/updates the profile (`/me`) of consumer accounts (name, username, bio, interests, avatarUrl, city). Username changes on update are re-validated and re-checked for uniqueness (excluding the account's own document) before being applied.
+- `src/controllers/businessAuthController.js` — Registers (requiring a valid `city` and a unique, format-validated `username`), logs in by `email` **or** `username` (same `identifier`/`$or` pattern as `userAuthController.js`, added 2026-11-20), and returns/updates the profile (`/me`) of business accounts (businessName, username, industry, description, logoUrl, city). Same username validate-and-recheck-uniqueness behavior on update.
 - `src/controllers/metaController.js` — Returns the static supported-cities list (`constants/cities.js`) for registration forms, profile editors, and the search city filter.
 - `src/controllers/uploadController.js` — Streams an uploaded image buffer to Cloudinary (`localyze/posts` or `localyze/profiles` folder via `?type=`) and returns its hosted URL plus its `publicId` (needed later to destroy the asset).
 - `src/controllers/businessController.js` — Returns a business's public profile (with follower/connection/collaboration counts, including `city` and `username`), plus its followers list, connections list, and visibility-aware posts-by-type list, for viewing any business's profile page (self or others). For a different business viewer, the profile also reports viewer-relative connection status and whether a collaboration request is pending. Also exposes `searchBusinesses` (`GET /api/businesses/search?q=&city=`) — regex name/industry match, exact-match city filter (defaults to the caller's own city when `city` is omitted); results include `username`.
@@ -177,8 +181,9 @@ localyze review 1/
 - `src/App.jsx` maps browser URLs to page components, protects signed-in routes and applies account-role restrictions. `src/account/` holds the session, signed-in profile and shared saved-post state.
 - `src/pages/` contains the authentication, home, search, explore, notifications, profile, publishing, collaboration, saved and about screens. Search preserves its filters in the URL. Both roles can open `/businesses/:businessId`, and `/profile` opens the signed-in account.
 - `src/components/` contains shared post cards, avatars, city selectors, countdowns, relationship buttons and dialogs. `src/lib/` contains API, image upload and date helpers.
-- `src/layout/` provides the desktop sidebar and mobile navigation. `src/main.jsx` imports the component foundations, shared charcoal/coral theme, business home styles and narrow-screen layouts. The mobile More menu includes secondary destinations and logout.
+- `src/layout/` provides the desktop sidebar and mobile navigation. `src/main.jsx` imports the component foundations, shared "Desi bazaar" light theme, business home styles and narrow-screen layouts. All theme colours and fonts are CSS variables on `:root` in `styles.css` (`--bg`, `--paper`, `--sunk`, `--line`, `--ink`, `--muted`, `--coral` (rani pink), `--gold` (marigold), `--blue` (peacock teal), their `-tint`/`-ink` pairs, `--print` block-print stripe, `--display` Rozha One, `--body` Inter); change the palette there rather than adding literal colours. Theme accents (stripe, card shadows, button depth, story rings) are the last block of `desktop.css`. The mobile More menu includes secondary destinations and logout.
 - `vite.config.js` — Vite React configuration and `/api` proxy to `http://localhost:5000`.
+- `vercel.json` (frontend) — Catch-all `rewrites` rule sending every path to `index.html`, required because the app uses `react-router`'s `BrowserRouter`; without it, refreshing on any non-root route (e.g. `/search`) 404'd on Vercel's static hosting instead of loading the SPA shell. Added 2026-11-21.
 - `index.html` — Browser document shell and page metadata.
 - `README.md` — Frontend product/UX brief covering audience roles, implemented flows, URL-based navigation, responsive requirements, integration boundaries, and local run instructions.
 
@@ -203,13 +208,13 @@ localyze review 1/
 | MongoDB connection | Done | Mongoose connection succeeds and backend starts after connecting. |
 | Consumer registration | Done | Frontend calls `POST /api/user/auth/register`; backend persists a hashed account and returns JWT. |
 | Business registration | Done | Frontend collects business details and calls `POST /api/business/auth/register`. |
-| Consumer login | Done | Frontend calls the consumer login endpoint and enters Home/Discovery. |
-| Business login | Done | Frontend calls the business login endpoint and enters Business Dashboard. |
+| Consumer login | Done | Frontend calls the consumer login endpoint with either email or username (`identifier` field) and enters Home/Discovery. Password field has a show/hide toggle. |
+| Business login | Done | Frontend calls the business login endpoint with either email or username (`identifier` field) and enters Business Dashboard. Password field has a show/hide toggle. |
 | JWT role protection | Done | Backend verifies JWT and restricts routes by `user` or `business` role. |
 | Consumer discovery feed | Done | Home feed (`GET /api/discover/posts`) shows posts only from businesses the consumer follows, newest first, with no interest/city fallback — an empty follow list renders an in-app "Follow more businesses to see their posts here" prompt (with a shortcut to Search). The demo-post fallback was removed entirely (2026-11-03): a failed request now shows a retryable error state instead of fake content. |
 | Stories from followed/connected businesses | Done | Consumers retain the latest-post stories view from followed businesses. The business desktop Home view calls `/api/stories?offers=true`, which returns one active offer per connected business, sorted by the nearest expiry; ending-soon offers receive an expiry chip in the horizontal rail. |
 | Business homepage feed | Done | Business "Home" is a real feed of posts from the business's accepted connections, falling back to posts from other businesses in the same industry when there are none. The demo-post fallback for an empty/failed feed was removed (2026-11-03) in favor of a real empty state and a retryable error state. |
-| Responsive UI (business and consumer) | Done | Shared charcoal/coral theme with desktop sidebar and narrow-screen header/bottom navigation, More menu, and role-aware links; includes role-specific login/registration, Home, Search, Explore, Saved, Notifications, profiles, comments and About, plus business publishing and collaborations. |
+| Responsive UI (business and consumer) | Done | Shared "Desi bazaar" light theme (rani pink, marigold, peacock teal on cream; Rozha One headings, Inter body) with desktop sidebar and narrow-screen header/bottom navigation, More menu, and role-aware links; includes role-specific login/registration, Home, Search, Explore, Saved, Notifications, profiles, comments and About, plus business publishing and collaborations. |
 | Business-to-business connections | Done | `Connection` model (`requester`/`recipient`/`status`); send/status/accept-reject/list-received endpoints under `/api/connections`; sent from a business's profile page, accepted/rejected from the business's Notifications page. |
 | Collaboration → connection auto-link | Done | Accepting a collaboration request (`PUT /api/collaborations/:id`) automatically creates (or upgrades) a `Connection` between the two businesses if one doesn't already exist — idempotent. |
 | Business profile page (self & others) | Done | Unified `BusinessProfilePage` for both a business's own profile and any other business's profile, opened via the Profile nav item (self) or clicking a business's name on a post (others). Shows follower/connection/collaboration counts (`GET /api/businesses/:id`), a Followers list and a Connections list that swap in-page (`/:id/followers`, `/:id/connections` — no navigation, sidebar always usable), and a tabbed post grid (Collaborations/Promotions/Offers via `/:id/posts?postType=`, visibility-aware). Self view has a working "Edit Profile" form (businessName/industry/description) and a logo photo uploader; others show Connect/Disconnect (business viewers, with a confirmation before disconnecting) or Follow (consumer viewers — previously missing entirely). No back button. |
@@ -246,9 +251,9 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | POST | `/api/business/auth/register` | Public | Register a business and return a business JWT. Requires a valid `city` (from `GET /api/meta/cities`) and a unique `username` (3-30 chars: lowercase letters/numbers/periods/underscores); 400 if either is missing/invalid/taken. |
-| POST | `/api/business/auth/login` | Public | Authenticate a business and return a business JWT (now also includes `username`). |
+| POST | `/api/business/auth/login` | Public | Authenticate a business via `{ identifier, password }` — `identifier` matches either `email` or `username` — and return a business JWT (now also includes `username`). |
 | POST | `/api/user/auth/register` | Public | Register a consumer and return a consumer JWT. Requires a valid `city` (from `GET /api/meta/cities`) and a unique `username` (same format as business); 400 if either is missing/invalid/taken. |
-| POST | `/api/user/auth/login` | Public | Authenticate a consumer and return a consumer JWT (now also includes `username`). |
+| POST | `/api/user/auth/login` | Public | Authenticate a consumer via `{ identifier, password }` — `identifier` matches either `email` or `username` — and return a consumer JWT (now also includes `username`). |
 | GET | `/api/user/auth/me` | Consumer | Return the logged-in consumer's profile (name, username, email, interests, bio, avatarUrl, city). |
 | PUT | `/api/user/auth/me` | Consumer | Update the logged-in consumer's name, username, bio, interests, avatarUrl, or city (username format/uniqueness and city validated against their respective lists). |
 | GET | `/api/business/auth/me` | Business | Return the logged-in business's profile (businessName, username, email, industry, description, logoUrl, city). |
@@ -298,7 +303,7 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 ## Known Issues / TODOs
 
 - The backend has no `.env.example` in the current file inventory despite README setup instructions referring to it; `.env` exists and contains sensitive configuration that must not be committed.
-- Root-level `atlas-credentials.env` and `credentials.txt` are sensitive-looking files; review, rotate, and remove from the project directory or ensure they are excluded from source control.
+- Root-level `atlas-credentials.env` and `credentials.txt` are sensitive-looking files that still exist locally — confirmed (2026-11-21) they are listed in root `.gitignore` and untracked by git (`git ls-files` shows neither), so the source-control exposure risk is resolved; rotating/removing the local files themselves is still up to the user.
 - Frontend sessions are stored as JWTs in localStorage. The client checks token expiry when reading a session and fetches the current account profile, but does not refresh tokens; transient profile-fetch failures can leave the local session active until the API rejects it.
 - Business post editing and deletion are available from the owner's profile; post performance/manage-stats screens are not implemented yet.
 - Offer notifications target followers only; consumers who follow after an offer is published do not receive that historical notification.
@@ -325,13 +330,14 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 - Saved posts remain consumer-only (not extended to businesses alongside likes/comments on 2026-11-03) — not asked for; revisit if business accounts should be able to bookmark posts too.
 - The backend uses broad CORS configuration and should be restricted for production deployment.
 - Git repository is active on branch `main` with remote `origin` configured as `https://github.com/ranjeetkalerk28-cell/localyze-review-1.git`; the latest verified checkpoint is commit `dd90504` (business likes/comments, pushed 2026-11-03).
+- Deployment target is Vercel (both frontend and backend as separate Vercel projects) — the earlier `DEPLOYMENT_CHECKLIST.md` (Railway-specific) has been removed since it no longer matches the actual target and was actively misleading. Required Vercel project environment variables: frontend needs `VITE_API_BASE_URL` set to the deployed backend's URL + `/api` (Vite bakes this in at build time — changing it requires a redeploy, not just a dashboard edit); backend needs `CLIENT_URL` set to the deployed frontend's exact origin (no trailing slash) for the CORS allowlist in `app.js` to accept it. Neither value is verified as actually set in Vercel from this repo alone — confirm in each project's dashboard.
 
 ## Next Steps
 
 1. Add business post performance/manage-stats screens.
 2. Expand Settings beyond just logout (theme, notification preferences, account deletion, etc.).
 3. Add request validation, centralized API client/error handling, token expiry handling, and automated backend/frontend tests.
-4. Remove or secure root credential files and restrict CORS before deployment.
+4. Restrict CORS before production launch (currently a `CLIENT_URL`-driven allowlist, which is fine, but still worth a final review); confirm `VITE_API_BASE_URL`/`CLIENT_URL` are actually set correctly in the Vercel dashboards and redeploy both projects to pick them up.
 5. Consider a Cloudinary cleanup job (or delete-on-cancel in the frontend) for uploaded images that never get attached to a saved post/profile.
 6. Decide whether expired offers should stay visible (marked expired) in the scrolling discover/connections feeds, not just the business's own profile — if so, add a postType-aware exception to those feeds' expiry filters.
 7. (Lowest priority / future) Map view of businesses — would need per-business geocoded coordinates, not just the current `city` string; explicitly deferred per product decision.
@@ -339,6 +345,12 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 9. Expand backend test coverage beyond offer dates/Explore/Saved/Comments (auth, follows, collaborations, connections, uploads, business profile) and add a frontend test suite.
 
 ## Change Log
+
+- [2026-11-21] Replaced the dark charcoal/coral theme with the "Desi bazaar" light theme, chosen from six style directions. About 100 hard-coded colours across `styles.css`, `desktop.css`, `business-home.css` and `responsive.css` were converted to `:root` variables in `styles.css`, and the old dark token overrides on `.desktop-ui` and `.business-home` were removed, so one block now themes every page for both roles. Fonts changed from Georgia/Trebuchet MS/Segoe UI to Rozha One (headings) and Inter (body), loaded from Google Fonts in `index.html`; `theme-color` is now cream. Added theme accents at the end of `desktop.css`: a block-print stripe on the sidebar, auth page and mobile header; marigold under-shadows on post cards; pressable rani-pink primary buttons; tinted post-type badges; multicolour story rings. Earlier the same day: removed the image column (`search-editorial`) from Search, which now lists results in a wrapping grid, and removed Explore's 1100px width cap (2 columns, 3 at 1600px and wider); the pottery image stays because Create Post uses it. Production build passed. Checked in the browser, signed in as the demo business `brewbites.mumbai`: login, business Home, Search, Explore, Collaborations, Create, own profile, Notifications and the comments pop-up at desktop width, plus login and Home at phone width, with no console errors. Fixes from that pass: story rings widened to 5px padding so the colour band isn't covered by the photo's cream gap; text-only post placeholders on profiles use the cream `--sunk` fill instead of white-on-white; own-profile post titles get right padding so the wider Rozha One headings don't run under the edit/delete buttons; on phones, offer names under story rings are limited to the ring's width (they previously spilled left and were clipped — an older bug). Consumer pages were then checked as the demo consumer `aanya.sharma`: Home (desktop and phone), Saved, Notifications, own profile and a business profile, with no console errors and no sideways scrolling on phone. Two consumer fixes: the Home "Discover your street" suggestions put the Follow link on its own line so business names no longer truncate to "Cru…"; right-rail headings (`.network-rail`, `.discovery-rail`) now scale with `clamp(22px, 2.2vw, 32px)` so "Your neighbourhood" fits the 180px rail on ~1000px screens. via Claude Opus 5.5.
+
+- [2026-11-21] Fixed Vercel deployment: added `backend/api/index.js` (re-exports `src/app.js` as the serverless function entry) and updated `backend/vercel.json` with a catch-all rewrite to it — previously `vercel.json` had no `builds`/`api` folder for Vercel's zero-config Node detection to find, so the backend likely had no deployed function to route requests to at all (independent of any CORS/env-var misconfiguration). Removed the Railway-specific `DEPLOYMENT_CHECKLIST.md`, which no longer matched the actual deployment target and was actively misleading alongside the Vercel configs already present. Confirmed root-level `atlas-credentials.env`/`credentials.txt` are gitignored and untracked (no longer a source-control exposure risk, though the local files themselves are unchanged). via Claude Sonnet 5.
+
+- [2026-11-20] Login now accepts either email or username. `userAuthController.loginUser`/`businessAuthController.loginBusiness` take a single `identifier` field (lowercased/trimmed) matched against `email` or `username` via Mongo `$or` — safe because both fields already have `lowercase`/`trim` set on the `User`/`Business` schemas. Failure message changed from "Invalid email or password" to "Invalid credentials" since it's no longer email-specific. `AuthPage.jsx`'s login field changed from `type="email"`/`name="email"` to `type="text"`/`name="identifier"`, with both `identifier` and `email` kept as separate keys in form state (registration still uses `email`). Also added a show/hide toggle (new `showPassword` state, shared between the login and register views since they're mutually exclusive) to both password fields. Also added `frontend/vercel.json` with a catch-all rewrite to `index.html`, fixing a bug where refreshing on any non-root route (the app uses `react-router`'s `BrowserRouter`) 404'd on Vercel instead of loading the SPA. Not yet browser/live-verified. via Claude Sonnet 5.
 
 - [2026-11-20] Split the monolithic frontend into account/session context, shared components, layout, API/date helpers, and feature pages; added React Router URLs for login, Home, Search, Explore, Notifications, Profile, business profiles, Saved, Create, Collaborations and About. Protected routes retain the requested destination through login, role-restricted pages redirect appropriately, profile/post business links navigate directly, and Search keeps its query and city in URL parameters. Shared account state loads the current profile and consumer saved-post IDs for coordinated post-card state. Reworked the shared layout for responsive desktop and mobile navigation, including a working notifications link, role indicator, More-menu secondary pages/logout, and mobile bottom navigation; added responsive styles and updated page metadata, design guidance, and the ignored local business-home reference image. Backend connection handling now enforces unique keyed open pairs while matching legacy unkeyed rows, shares viewer-relative status helpers with business profiles, returns connection/collaboration status in profile data, and makes concurrent duplicate pending collaboration sends return the existing request. Added a focused connection test for legacy pairs, duplicate collaboration sends and profile status/count updates. Frontend production build passed; browser checks were reported for both roles, direct-link login/refresh, browser navigation and 320–1280px layouts. Backend tests were added but not run as part of this verification. Changes remain uncommitted.
 
@@ -410,7 +422,7 @@ All protected endpoints require `Authorization: Bearer <JWT>`. Role restrictions
 
 ## Last Updated
 
-2026-11-18 (Compact square business Home posts. Production build passed. Browser checks at six desktop sizes from 820×540 to 1901×858 verified square, centered photo and text cards with their actions inside and no content overflow for the tested posts.)
+2026-11-21 (Applied the "Desi bazaar" light theme app-wide and removed the Search image column / Explore width cap; business and consumer pages checked in the browser. Also fixed the Vercel deployment: added `backend/api/index.js` + updated `backend/vercel.json` so the backend has an actual serverless function to route to, and removed the stale Railway-specific `DEPLOYMENT_CHECKLIST.md`. Not yet re-verified live on Vercel after this change — confirm `VITE_API_BASE_URL`/`CLIENT_URL` are set in both Vercel projects and redeploy before retesting login.)
 
 next steps 
 normalize viewsize of collaborations page 

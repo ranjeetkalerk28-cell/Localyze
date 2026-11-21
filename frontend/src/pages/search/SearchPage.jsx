@@ -146,18 +146,6 @@ export default function SearchPage() {
             </div>
           )}
         </div>
-        <aside className="search-editorial">
-          <h2>
-            Start close
-            <br />
-            to home.
-          </h2>
-          <p>Find neighbourhood businesses, makers and studios{city ? ` in ${city}` : ' near you'}.</p>
-          <img
-            src="/images/search-still-life.png"
-            alt="Handmade pottery and white blossoms in warm afternoon light"
-          />
-        </aside>
       </div>
     </section>
   )
