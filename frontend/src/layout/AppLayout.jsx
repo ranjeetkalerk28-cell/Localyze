@@ -36,7 +36,7 @@ function Navigation() {
           { label: 'Create', path: '/create', icon: PlusSquare, secondary: true },
           { label: 'Collaborations', path: '/collaborations', icon: Handshake, secondary: true },
         ]
-      : [{ label: 'Saved', path: '/saved', icon: Bookmark, secondary: true }]),
+      : [{ label: 'Saved', path: '/saved', icon: Bookmark, secondary: true, moreOnly: true }]),
     { label: 'Profile', path: profilePath, icon: UserRound },
   ]
 
@@ -77,9 +77,12 @@ function Navigation() {
       <Link className="brand" to="/" aria-label="Localyze home">
         <span>Localyze</span>
       </Link>
+      <p className="sidebar-tagline" lang="hi">
+        दुकान से दिल तक
+      </p>
       <p className="sidebar-label">{isBusiness ? 'Business account' : 'Your neighbourhood'}</p>
       <nav className="main-nav" aria-label="Main navigation">
-        {items.map(({ label, path, icon: Icon, secondary }) => (
+        {items.filter((item) => !item.moreOnly).map(({ label, path, icon: Icon, secondary }) => (
           <NavLink
             end
             key={path}
@@ -166,6 +169,7 @@ export default function AppLayout() {
     >
       <Navigation key={pathname} />
       <main className="main-content">
+        <div className="toran" aria-hidden="true" />
         <header className="mobile-header">
           <Link className="brand" to="/" aria-label="Localyze home">
             <span>Localyze</span>

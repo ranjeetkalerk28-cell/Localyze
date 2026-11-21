@@ -7,6 +7,12 @@ import Countdown from './Countdown'
 import Avatar from './Avatar'
 import BusinessLink from './BusinessLink'
 
+const STAMPS = {
+  offer: ['Offer', 'Limited'],
+  promotion: ['Promo', 'New'],
+  collaboration: ['Saath', 'Collab'],
+}
+
 export default function PostCard({ post, onOpenBusiness, onSaveChange, onLikeChange, homeCard = false }) {
   const { token, userId, isBusiness: isBusinessAccount, savedPostIds, updateSaved } = useAccount()
   const initialSaved = savedPostIds.has(post._id)
@@ -28,6 +34,8 @@ export default function PostCard({ post, onOpenBusiness, onSaveChange, onLikeCha
   const [commentSubmitError, setCommentSubmitError] = useState('')
   const commentsDialogRef = useRef(null)
   const businessName = post.business?.businessName || 'Localyze member'
+  const postType = post.postType || 'offer'
+  const [stampWord, stampSub] = STAMPS[postType] || STAMPS.offer
   const ageHours = Math.max(0, Math.floor((Date.now() - new Date(post.createdAt)) / 3600000))
   const ageLabel = ageHours < 1 ? 'Just now' : ageHours < 24 ? `${ageHours}h ago` : formatDate(post.createdAt)
 
@@ -216,7 +224,13 @@ export default function PostCard({ post, onOpenBusiness, onSaveChange, onLikeCha
         )}
       </header>
       {post.imageUrl && (
-        <img className="post-image" src={post.imageUrl} alt={post.title} loading="lazy" decoding="async" />
+        <div className="post-media">
+          <img className="post-image" src={post.imageUrl} alt={post.title} loading="lazy" decoding="async" />
+          <span className={`post-stamp post-stamp-${postType}`} aria-hidden="true">
+            {stampWord}
+            <small>{stampSub}</small>
+          </span>
+        </div>
       )}
       <div className="post-actions">
         <div className="action-group">
@@ -243,6 +257,7 @@ export default function PostCard({ post, onOpenBusiness, onSaveChange, onLikeCha
             <MessageCircle size={21} />
           </button>
         </div>
+        {postType === 'offer' && post.expiresAt && <Countdown targetDate={post.expiresAt} compact />}
         {!isBusinessAccount && (
           <button
             className={`icon-button ${saved ? 'is-saved' : ''}`}
@@ -256,10 +271,7 @@ export default function PostCard({ post, onOpenBusiness, onSaveChange, onLikeCha
       </div>
       <div className="post-copy">
         <div className="post-meta">
-          <span className={`post-type post-type-${post.postType || 'offer'}`}>
-            {post.postType || 'offer'}
-          </span>
-          {post.postType === 'offer' && post.expiresAt && <Countdown targetDate={post.expiresAt} compact />}
+          <span className={`post-type post-type-${postType}`}>{postType}</span>
         </div>
         <h2>{post.title}</h2>
         <p>{post.content}</p>

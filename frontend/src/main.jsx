@@ -5,6 +5,7 @@ import './styles.css'
 import './desktop.css'
 import './business-home.css'
 import './responsive.css'
+import './bazaar.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

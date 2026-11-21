@@ -77,11 +77,11 @@ body:has(.desktop-ui) { background: var(--bg); }
 .desktop-ui .feed-intro { color: var(--muted); margin: 10px 0 0; font-size: 14px; }
 .desktop-ui .stories-heading h2 { font-size: 22px; margin: 0 0 20px; letter-spacing: -.5px; }
 .desktop-ui .stories-heading button { margin-top: -15px; border-radius: 50%; background: var(--sunk); padding: 8px; }
-.desktop-ui .story-row { border: 0; padding: 2px 4px 15px; gap: 20px; margin: 0; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-.desktop-ui .story { flex: 0 0 96px; min-width: 0; gap: 12px; }
-.desktop-ui .story-ring { width: 86px; height: 86px; background: transparent; border: 2px solid var(--line-strong); padding: 3px; }
-.desktop-ui .story-ring .avatar { width: 76px; height: 76px; flex-basis: 76px; }
-.desktop-ui .story > span { color: var(--ink); font-size: 11px; max-width: 96px; }
+.desktop-ui .story-row { border: 0; padding: 2px 4px 10px; gap: 18px; margin: 0; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.desktop-ui .story { flex: 0 0 80px; min-width: 0; gap: 8px; }
+.desktop-ui .story-ring { width: 68px; height: 68px; background: transparent; border: 2px solid var(--line-strong); padding: 3px; }
+.desktop-ui .story-ring .avatar { width: 58px; height: 58px; flex-basis: 58px; }
+.desktop-ui .story > span { color: var(--ink); font-size: 11px; max-width: 80px; }
 .desktop-ui .ending-soon .story-ring { border-color: var(--gold); }
 .desktop-ui .story-time { font-size: 10px; font-weight: 650; }
 .desktop-ui .story-empty { font-size: 12px; padding: 12px 0; }
@@ -113,7 +113,8 @@ body:has(.desktop-ui) { background: var(--bg); }
 .desktop-ui .stories-heading .eyebrow { font-size: 9px; margin-bottom: 6px; }
 .desktop-ui .offer-rail-controls button { margin: 0; }
 .desktop-ui .offer-viewer .post-card.has-photo { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: auto 1fr auto auto; column-gap: 24px; }
-.desktop-ui .offer-viewer .has-photo > .post-image { grid-column: 1; grid-row: 1 / 5; width: 100%; height: 100%; max-height: 650px; min-height: 440px; aspect-ratio: auto; object-fit: cover; border-radius: 18px 6px 18px 6px; }
+.desktop-ui .offer-viewer .has-photo > .post-media { grid-column: 1; grid-row: 1 / 5; }
+.desktop-ui .offer-viewer .has-photo > .post-media > .post-image { width: 100%; height: 100%; max-height: 650px; min-height: 440px; aspect-ratio: auto; object-fit: cover; }
 .desktop-ui .offer-viewer .has-photo > .post-header { grid-column: 2; grid-row: 1; flex-wrap: wrap; }
 .desktop-ui .offer-viewer .has-photo > .post-copy { grid-column: 2; grid-row: 2; margin: 0; padding: 20px 0; background: transparent; }
 .desktop-ui .offer-viewer .post-copy h2 { font-size: clamp(26px, 3vw, 40px); }
@@ -424,24 +425,3 @@ body:has(.desktop-ui) { background: var(--bg); }
 @media (prefers-reduced-motion: reduce) {
   .desktop-ui *, .desktop-ui *::before, .desktop-ui *::after { scroll-behavior: auto !important; transition: none !important; }
 }
-
-/* Desi bazaar accents: colour, border and depth only, so layout rules above stay in charge. */
-.desktop-ui h1 { letter-spacing: -.5px; }
-.desktop-ui .brand, .desktop-ui .auth-brand { color: var(--coral); letter-spacing: 0; }
-.desktop-ui .eyebrow, .desktop-ui .sidebar-label { color: var(--blue); }
-.desktop-ui .sidebar { background: var(--paper); border-right: 1px solid var(--line); }
-.desktop-auth { position: relative; }
-.desktop-ui .sidebar::before, .desktop-auth::before, .desktop-ui .mobile-header::before { content: ""; position: absolute; inset: 0 0 auto; height: 6px; background: var(--print); }
-.desktop-ui .nav-item.active { font-weight: 600; }
-.desktop-ui .primary-button { color: var(--on-coral); border-radius: 22px; box-shadow: 0 4px 0 var(--coral-shadow); font-weight: 600; }
-.desktop-ui .primary-button:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--coral-shadow); }
-.desktop-ui .post-card { border: 1.5px solid var(--line); border-radius: 18px 18px 18px 4px; box-shadow: 0 8px 0 -3px var(--gold); }
-.desktop-ui .offer-viewer .post-card { box-shadow: none; }
-.desktop-ui .post-meta .post-type { background: var(--coral-tint); color: var(--coral); padding: 3px 10px; border-radius: 4px 12px 4px 12px; font-size: 10px; }
-.desktop-ui .countdown-compact { color: var(--gold-ink); }
-.desktop-ui .story-ring { border: 0; padding: 5px; background: conic-gradient(#e2185b, #f6a313, #0f8b8d, #e2185b); }
-.desktop-ui .story-ring > * { box-shadow: 0 0 0 2px var(--bg); }
-.desktop-ui .empty-state { border: 1.5px dashed var(--line-strong); background: var(--paper); }
-.desktop-ui .profile-post-card { border-width: 1.5px; box-shadow: 0 6px 0 -3px var(--gold); }
-.desktop-ui .profile-post-card:has(.profile-post-edit) .profile-post-open > strong { padding-right: 84px; }
-.desktop-ui :is(.network-rail, .discovery-rail) h2 { font-size: clamp(22px, 2.2vw, 32px); letter-spacing: -.3px; }

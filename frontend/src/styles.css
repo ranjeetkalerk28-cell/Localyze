@@ -3,11 +3,16 @@
   --line: #f1d9ae; --line-strong: #e2b86b;
   --ink: #3a1020; --ink-soft: #5e3442; --muted: #8a5a44;
   --coral: #c2124f; --coral-deep: #9b0e40; --coral-shadow: #7c0a32; --coral-tint: #fde3ec; --on-coral: #ffffff;
-  --gold: #f6a313; --gold-ink: #4a2a00; --gold-tint: #fff0cf;
-  --blue: #0f8b8d; --blue-tint: #d9f1f0;
+  --gold: #f6a313; --gold-deep: #d97a00; --gold-ink: #4a2a00; --gold-tint: #fff0cf;
+  --blue: #0f8b8d; --blue-deep: #0a5f61; --blue-tint: #d9f1f0;
+  --maroon: #5a0f2e; --maroon-2: #7a1a40; --on-maroon: #fff0cf; --on-maroon-soft: #ffe2a6;
+  --leaf: #2f7d3a; --ledger-rule: #f2c4c4; --ledger-margin: #e98a8a;
   --success: #2f7d4f; --danger: #b42318;
   --print: repeating-linear-gradient(90deg, #e2185b 0 12px, #f6a313 12px 24px, #0f8b8d 24px 36px);
+  --truck: repeating-linear-gradient(45deg, #e2185b 0 7px, #f6a313 7px 14px, #0f8b8d 14px 21px, #fffdf8 21px 24px);
   --display: 'Rozha One', Georgia, serif;
+  --sign: 'Yatra One', 'Rozha One', Georgia, serif;
+  --hand: 'Kalam', 'Segoe Print', cursive;
   --body: 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-family: var(--body);
   color: var(--ink);

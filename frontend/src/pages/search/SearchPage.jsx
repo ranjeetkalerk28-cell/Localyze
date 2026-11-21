@@ -57,8 +57,9 @@ export default function SearchPage() {
       <div className="search-workspace">
         <div className="search-content">
           <header className="search-heading">
-            <h1>Find a business.</h1>
-            <p>Good neighbours make great connections.</p>
+            <h1 className="signboard">
+              Dukaan dhoondo <small>Find a business</small>
+            </h1>
           </header>
           <div className="search-controls" role="search" aria-label="Find local businesses">
             <label className="search-query-field">
@@ -67,7 +68,7 @@ export default function SearchPage() {
                 type="search"
                 aria-label="Search by name or industry"
                 className="search-input"
-                placeholder="Search by name or industry..."
+                placeholder="Chai, pottery, tailor, yoga…"
                 value={query}
                 onChange={(event) => setFilter('q', event.target.value)}
               />
@@ -129,18 +130,16 @@ export default function SearchPage() {
                   <Avatar name={business.businessName} src={business.logoUrl} />
                   <span className="search-result-copy">
                     <strong>{business.businessName}</strong>
-                    {business.username && <span className="search-result-handle">@{business.username}</span>}
                     <span className="search-result-meta">
+                      {business.username && <span className="search-result-handle">@{business.username}</span>}
+                      {business.username && ' · '}
                       {business.industry || 'Local business'}
                       {business.city && <> &middot; {business.city}</>}
                     </span>
                   </span>
-                  <ArrowRight
-                    className="search-result-arrow"
-                    size={25}
-                    strokeWidth={1.3}
-                    aria-hidden="true"
-                  />
+                  <span className="search-result-arrow">
+                    Visit dukaan <ArrowRight size={16} aria-hidden="true" />
+                  </span>
                 </BusinessLink>
               ))}
             </div>

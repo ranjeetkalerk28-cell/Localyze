@@ -71,10 +71,9 @@ export default function StoriesRow({ token, isBusiness, userId }) {
   return (
     <section className="offer-stories" aria-label="Active offers">
       <div className="stories-heading">
-        <div>
-          <p className="eyebrow">A little something local</p>
-          <h2>{isBusiness ? 'Offers from your connections' : 'Offers from businesses you follow'}</h2>
-        </div>
+        <h2 className="signboard">
+          Aaj ke offers <small>Today</small>
+        </h2>
         <div className="offer-rail-controls">
           <button
             className="icon-button"
@@ -103,6 +102,7 @@ export default function StoriesRow({ token, isBusiness, userId }) {
           visible.map((post) => {
             const hours = Math.max(1, Math.ceil((new Date(post.expiresAt).getTime() - now) / 3600000))
             const endingSoon = hours <= 24
+            const timeLeft = endingSoon ? `${hours}h left` : `${Math.ceil(hours / 24)}d left`
             return (
               <button
                 className={`story ${endingSoon ? 'ending-soon' : ''}`}
@@ -117,7 +117,7 @@ export default function StoriesRow({ token, isBusiness, userId }) {
               >
                 <div className="story-ring">
                   <Avatar name={post.business.businessName} src={post.business.logoUrl} />
-                  {endingSoon && <span className="story-time">{hours}h</span>}
+                  <span className="story-time">{timeLeft}</span>
                 </div>
                 <span>{post.business.businessName}</span>
               </button>

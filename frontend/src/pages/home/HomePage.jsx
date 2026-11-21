@@ -10,7 +10,8 @@ import RecommendedConnections from './RecommendedConnections'
 import SuggestedBusinesses from './SuggestedBusinesses'
 
 export default function HomePage() {
-  const { token, isBusiness, userId, onLogout } = useAccount()
+  const { token, isBusiness, userId, onLogout, profile } = useAccount()
+  const greetName = isBusiness ? profile?.businessName : profile?.name?.split(' ')[0]
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -46,6 +47,7 @@ export default function HomePage() {
     <div className="feed-layout">
       <section className="feed-column">
         <StoriesRow token={token} isBusiness={isBusiness} userId={userId} />
+        <div className="rangoli" aria-hidden="true" />
         <header className="feed-heading">
           <div>
             <p className="eyebrow">{isBusiness ? 'Your network' : 'Your local signal'}</p>
@@ -92,17 +94,22 @@ export default function HomePage() {
         )}
       </section>
       <aside className="right-rail">
+        {greetName && (
+          <p className="bazaar-greeting">
+            Namaste, {greetName}!{profile?.city && <small>{profile.city}</small>}
+          </p>
+        )}
         {isBusiness ? (
           <NetworkRail>
             <RecommendedConnections token={token} />
           </NetworkRail>
         ) : (
           <div className="discovery-rail">
-            <h2>Discover your street.</h2>
-            <SuggestedBusinesses token={token} />
-            <div className="organic-rule" aria-hidden="true">
-              ∿
+            <div className="ledger">
+              <h2>Discover your street.</h2>
+              <SuggestedBusinesses token={token} />
             </div>
+            <div className="rangoli" aria-hidden="true" />
             <h2>Your neighbourhood</h2>
             <p>
               A closer, kinder corner of the world. Find local makers, familiar faces, and your next favourite

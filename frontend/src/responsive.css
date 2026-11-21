@@ -95,7 +95,7 @@
   .desktop-ui .offer-viewer-post { grid-row: 1; grid-column: 1/-1; max-height: 65dvh; }
   .offer-viewer-stage > .offer-arrow:last-child { justify-self: end; }
   .desktop-ui .offer-viewer .post-card.has-photo { display: flex; }
-  .desktop-ui .offer-viewer .has-photo > .post-image { height: auto; min-height: 0; max-height: 36dvh; }
+  .desktop-ui .offer-viewer .has-photo > .post-media > .post-image { height: auto; min-height: 0; max-height: 36dvh; }
   .desktop-ui .comments-dialog[open]:has(.comments-photo) { display: flex; }
   .desktop-ui .comments-photo { display: none; }
   .desktop-ui :is(.post-edit-dialog, .comments-dialog, .business-post-dialog) { max-width: 94vw; }
