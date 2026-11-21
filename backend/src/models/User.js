@@ -12,7 +12,8 @@ const userSchema = new mongoose.Schema(
     interests: [{ type: String }], // used for discover matching
     bio: { type: String, default: '' },
     avatarUrl: { type: String, default: '' },
-    city: { type: String, required: true, enum: CITIES, index: true }, // drives city-scoped discovery/search
+    city: { type: String, required: true, enum: CITIES, index: true }, // default location, edited in Settings
+    currentCity: { type: String, enum: CITIES }, // quick-switch location; drives discovery when set
   },
   { timestamps: true }
 );

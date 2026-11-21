@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight, ChevronDown, MapPin, Sparkles } from 'lucide-react'
 import { useAccount } from '../../account/AccountContext'
 import { API_URL } from '../../lib/api'
 import PostCard from '../../components/PostCard'
+import LocationDialog, { currentCityOf } from '../../components/LocationDialog'
 import StoriesRow from './StoriesRow'
 import NetworkRail from './NetworkRail'
 import RecommendedConnections from './RecommendedConnections'
@@ -16,6 +17,8 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const [isChangingLocation, setIsChangingLocation] = useState(false)
+  const currentCity = currentCityOf(profile)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -94,20 +97,31 @@ export default function HomePage() {
         )}
       </section>
       <aside className="right-rail">
-        {greetName && (
-          <p className="bazaar-greeting">
-            Namaste, {greetName}!{profile?.city && <small>{profile.city}</small>}
-          </p>
+        {profile && (
+          <div className="bazaar-greeting">
+            {greetName && <p>Namaste, {greetName}!</p>}
+            <button
+              className="location-chip"
+              aria-haspopup="dialog"
+              aria-label={`Current location: ${currentCity}. Change location`}
+              onClick={() => setIsChangingLocation(true)}
+            >
+              <MapPin size={14} aria-hidden="true" />
+              {currentCity}
+              <ChevronDown size={14} aria-hidden="true" />
+            </button>
+          </div>
         )}
+        {isChangingLocation && <LocationDialog onClose={() => setIsChangingLocation(false)} />}
         {isBusiness ? (
           <NetworkRail>
-            <RecommendedConnections token={token} />
+            <RecommendedConnections token={token} city={currentCity} />
           </NetworkRail>
         ) : (
           <div className="discovery-rail">
             <div className="ledger">
               <h2>Discover your street.</h2>
-              <SuggestedBusinesses token={token} />
+              <SuggestedBusinesses token={token} city={currentCity} />
             </div>
             <div className="rangoli" aria-hidden="true" />
             <h2>Your neighbourhood</h2>

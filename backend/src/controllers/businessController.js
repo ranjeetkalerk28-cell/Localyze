@@ -3,13 +3,15 @@ const Follow = require('../models/Follow');
 const Connection = require('../models/Connection');
 const Collaboration = require('../models/Collaboration');
 const Post = require('../models/Post');
+const { currentCityOf } = require('../utils/location');
 
 // @desc    Search businesses by name/industry, filtered by city (defaults to the caller's own city)
 // @route   GET /api/businesses/search
 const searchBusinesses = async (req, res) => {
   try {
     const { q = '' } = req.query;
-    const city = req.query.city || req.user?.city || req.business?.city;
+    const account = req.user || req.business;
+    const city = req.query.city || (account && currentCityOf(account));
 
     const query = {};
     if (city) query.city = city;

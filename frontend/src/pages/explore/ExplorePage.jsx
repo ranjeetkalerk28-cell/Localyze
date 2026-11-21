@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useAccount } from '../../account/AccountContext'
 import { API_URL } from '../../lib/api'
 import PostCard from '../../components/PostCard'
+import { currentCityOf } from '../../components/LocationDialog'
 
 export default function ExplorePage() {
-  const { token, isBusiness } = useAccount()
+  const { token, isBusiness, profile } = useAccount()
+  const city = currentCityOf(profile)
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -42,8 +44,8 @@ export default function ExplorePage() {
       <h1>Discover what’s near you.</h1>
       <p className="dashboard-intro">
         {isBusiness
-          ? 'Discover nearby businesses and posts from others in your city or industry.'
-          : 'Posts from businesses that match your city and interests, whether you follow them yet or not.'}
+          ? `Posts from other businesses in ${city || 'your city'}, with your industry first.`
+          : `Posts from businesses in ${city || 'your city'}, with your interests first — whether you follow them yet or not.`}
       </p>
       {isLoading ? (
         <div className="loading-state">Finding posts near you...</div>
@@ -59,9 +61,7 @@ export default function ExplorePage() {
         <div className="empty-state">
           <Compass size={24} />
           <p>
-            {isBusiness
-              ? 'No nearby or industry-related business posts to discover yet.'
-              : 'Nothing to discover yet. Add interests to your profile to see more here.'}
+            {`No posts from businesses in ${city || 'your city'} yet. Try another city from the location on your home page.`}
           </p>
         </div>
       ) : (

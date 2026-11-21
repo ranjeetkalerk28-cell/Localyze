@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router'
 import { useAccount } from '../../account/AccountContext'
 import { API_URL, uploadImageFile } from '../../lib/api'
-import CitySelect from '../../components/CitySelect'
 import Avatar from '../../components/Avatar'
 import FollowButton from '../../components/FollowButton'
 import ConnectButton from '../../components/ConnectButton'
@@ -40,7 +39,6 @@ export default function BusinessProfilePage({ businessId }) {
     username: '',
     industry: '',
     description: '',
-    city: '',
   })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -106,7 +104,6 @@ export default function BusinessProfilePage({ businessId }) {
       username: business.username || '',
       industry: business.industry || '',
       description: business.description || '',
-      city: business.city || '',
     })
     setSaveError('')
     setIsEditing(true)
@@ -259,13 +256,6 @@ export default function BusinessProfilePage({ businessId }) {
                 <input
                   value={editForm.industry}
                   onChange={(event) => setEditForm({ ...editForm, industry: event.target.value })}
-                />
-              </label>
-              <label>
-                City *
-                <CitySelect
-                  value={editForm.city}
-                  onChange={(event) => setEditForm({ ...editForm, city: event.target.value })}
                 />
               </label>
               <label>

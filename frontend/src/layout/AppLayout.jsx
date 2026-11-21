@@ -105,14 +105,13 @@ function Navigation() {
       )}
       <div className="sidebar-bottom" ref={menuRef}>
         <SidebarIdentity />
-        <button
-          className="nav-item settings-toggle"
-          aria-expanded={menu === 'settings'}
-          onClick={(event) => toggleMenu('settings', event)}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) => `nav-item settings-toggle${isActive ? ' active' : ''}`}
         >
           <Settings size={21} />
           <span>Settings</span>
-        </button>
+        </NavLink>
         <button
           className={`nav-item more-toggle${menu === 'more' ? ' active' : ''}${moreDestination ? ' has-current-page' : ''}`}
           aria-expanded={menu === 'more'}
@@ -123,29 +122,29 @@ function Navigation() {
         </button>
         {menu && (
           <div className="more-menu">
-            {menu === 'more' && (
-              <>
-                {items
-                  .filter((item) => item.secondary)
-                  .map(({ label, path, icon: Icon }) => (
-                    <NavLink
-                      end
-                      key={path}
-                      to={path}
-                      onClick={() => setMenu(null)}
-                      className={label === 'Saved' ? '' : 'mobile-menu-item'}
-                    >
-                      <Icon size={17} />
-                      {label}
-                    </NavLink>
-                  ))}
-                <Link to="/about" onClick={() => setMenu(null)}>
-                  <Sparkles size={17} />
-                  About Localyze
-                </Link>
-              </>
-            )}
-            <button className={menu === 'more' ? 'mobile-menu-item' : ''} onClick={logout}>
+            {items
+              .filter((item) => item.secondary)
+              .map(({ label, path, icon: Icon }) => (
+                <NavLink
+                  end
+                  key={path}
+                  to={path}
+                  onClick={() => setMenu(null)}
+                  className={label === 'Saved' ? '' : 'mobile-menu-item'}
+                >
+                  <Icon size={17} />
+                  {label}
+                </NavLink>
+              ))}
+            <NavLink to="/settings" onClick={() => setMenu(null)} className="mobile-menu-item">
+              <Settings size={17} />
+              Settings
+            </NavLink>
+            <Link to="/about" onClick={() => setMenu(null)}>
+              <Sparkles size={17} />
+              About Localyze
+            </Link>
+            <button onClick={logout}>
               <LogOut size={17} />
               Log out
             </button>

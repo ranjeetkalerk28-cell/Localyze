@@ -6,6 +6,7 @@ const Connection = require('../models/Connection');
 const Activity = require('../models/Activity');
 const cloudinary = require('../config/cloudinary');
 const { visibleNowFilter } = require('../utils/postVisibility');
+const { currentCityOf } = require('../utils/location');
 
 // @desc    Create a post (business only)
 // @route   POST /api/posts
@@ -261,7 +262,7 @@ const getConnectionsFeed = async (req, res) => {
     if (posts.length < limit) {
       const industryBusinesses = await Business.find({
         industry: req.business.industry,
-        city: req.business.city,
+        city: currentCityOf(req.business),
         _id: { $nin: [...connectedIds, myId] },
       }).select('_id');
       const industryBusinessIds = industryBusinesses.map((business) => business._id);

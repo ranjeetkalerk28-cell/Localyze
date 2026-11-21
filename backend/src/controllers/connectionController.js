@@ -1,9 +1,11 @@
 const Connection = require('../models/Connection');
 const Business = require('../models/Business');
+const { currentCityOf } = require('../utils/location');
 
 const getRecommendations = async (req, res) => {
   try {
-    const { _id, city } = req.business;
+    const { _id } = req.business;
+    const city = currentCityOf(req.business);
     const connections = await Connection.find({
       status: { $in: ['pending', 'accepted'] },
       $or: [{ requester: _id }, { recipient: _id }],

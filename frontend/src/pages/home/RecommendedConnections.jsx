@@ -4,7 +4,7 @@ import Avatar from '../../components/Avatar'
 import ConnectButton from '../../components/ConnectButton'
 import BusinessLink from '../../components/BusinessLink'
 
-export default function RecommendedConnections({ token }) {
+export default function RecommendedConnections({ token, city }) {
   const [businesses, setBusinesses] = useState(null)
   const [error, setError] = useState(false)
   const [version, setVersion] = useState(0)
@@ -24,7 +24,7 @@ export default function RecommendedConnections({ token }) {
         if (!controller.signal.aborted) setError(true)
       })
     return () => controller.abort()
-  }, [token, version])
+  }, [token, version, city])
   if (error)
     return (
       <p role="status">

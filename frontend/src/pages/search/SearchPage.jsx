@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router'
 import { useAccount } from '../../account/AccountContext'
 import { API_URL } from '../../lib/api'
 import CitySelect from '../../components/CitySelect'
+import { currentCityOf } from '../../components/LocationDialog'
 import Avatar from '../../components/Avatar'
 import BusinessLink from '../../components/BusinessLink'
 
@@ -11,7 +12,7 @@ export default function SearchPage() {
   const { token, profile, profileLoading } = useAccount()
   const [params, setParams] = useSearchParams()
   const query = params.get('q') || ''
-  const city = params.get('city') ?? profile?.city ?? ''
+  const city = params.get('city') ?? currentCityOf(profile)
   function setFilter(key, value) {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value)

@@ -47,7 +47,37 @@
   background: radial-gradient(circle, var(--blue) 0 4px, var(--paper) 4.5px 6px, var(--gold) 6.5px 8px, transparent 8.5px) 14px 50% / 28px 16px repeat-x;
 }
 .bazaar-greeting { margin: 0 0 14px; font: 700 21px/1.2 var(--hand); color: var(--coral); overflow-wrap: anywhere; }
-.bazaar-greeting small { display: block; font: 500 12px/1.5 var(--body); color: var(--muted); }
+.bazaar-greeting p { margin: 0 0 8px; }
+.location-chip {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 12px;
+  background: var(--coral-tint); color: var(--coral-deep); border: 1px solid #f6c3d6; border-radius: 999px;
+  font: 600 13px/1 var(--body); cursor: pointer;
+}
+.location-chip:hover { background: #fad3e3; }
+.location-chip:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+.location-dialog { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 20px; width: min(400px, 92vw); padding: 0; }
+.location-dialog::backdrop { background: rgba(58, 16, 32, .45); }
+.location-dialog:not([open]) { display: none; }
+.location-dialog-body { position: relative; padding: 26px 24px 22px; }
+.location-dialog h2 { margin: 0 40px 4px 0; font: 400 23px/1.2 var(--display); }
+.location-dialog-intro { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.location-search {
+  display: flex; align-items: center; gap: 8px; padding: 0 12px; margin-bottom: 10px;
+  background: var(--sunk); border: 1px solid var(--line-strong); border-radius: 12px; color: var(--muted);
+}
+.location-search:focus-within { border-color: var(--coral); box-shadow: 0 0 0 3px rgba(194, 18, 79, .12); }
+.desktop-ui .location-search input:is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+.location-search input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 11px 0; font: 400 14px var(--body); color: var(--ink); outline: none; }
+.location-list { list-style: none; margin: 0; padding: 0; max-height: min(300px, 45dvh); overflow-y: auto; scrollbar-width: thin; }
+.location-list button {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0 14px;
+  background: transparent; border: 0; border-radius: 10px; color: var(--ink); font: 400 14px var(--body); text-align: left; cursor: pointer;
+}
+.location-list button:hover, .location-list button.selected { background: var(--coral-tint); }
+.location-list button.selected { color: var(--coral-deep); font-weight: 600; }
+.location-empty { color: var(--muted); font-size: 13px; padding: 10px 14px; margin: 0; }
+.location-dialog .edit-profile-actions { margin-top: 16px; }
 
 /* ---- Offer circles and paper tags ---- */
 .desktop-ui .story-ring { border: 0; padding: 5px; background: conic-gradient(#e2185b, #f6a313, #0f8b8d, #e2185b); }
@@ -113,7 +143,6 @@
 .ledger-more { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .ledger-more:hover { color: var(--coral); }
 .consumer-ui .right-rail .ledger .suggestion { padding: 8px 0; margin: 0; }
-.consumer-ui .right-rail .ledger .suggestion > button:last-child { margin-left: 64px; }
 
 .desktop-ui .network-rail .make-local { margin-top: 26px; }
 .desktop-ui .network-rail .rail-actions { gap: 14px; margin-top: 12px; }
@@ -215,10 +244,10 @@
   .desktop-ui .sidebar .sidebar-label { color: var(--on-maroon-soft); }
   .desktop-ui .sidebar .nav-item { color: var(--on-maroon); }
   .desktop-ui .sidebar .nav-item:hover { background: rgba(255, 240, 207, .1); }
-  .desktop-ui .sidebar .main-nav .nav-item.active { background: var(--gold); color: var(--maroon); font-weight: 700; box-shadow: 0 3px 0 var(--gold-deep); }
+  .desktop-ui .sidebar :is(.main-nav .nav-item, .settings-toggle).active { background: var(--gold); color: var(--maroon); font-weight: 700; box-shadow: 0 3px 0 var(--gold-deep); }
   .desktop-ui .sidebar .more-toggle.has-current-page { color: var(--gold); }
   .desktop-ui .sidebar .sidebar-bottom .sidebar-identity { border-top: 1px dashed rgba(255, 226, 166, .4); }
-  .desktop-ui .sidebar :is(.sidebar-city, .identity-button small) { color: var(--on-maroon-soft); }
+  .desktop-ui .sidebar .identity-button small { color: var(--on-maroon-soft); }
   .desktop-ui .sidebar :is(.identity-button img, .identity-initial) { box-shadow: 0 0 0 2px var(--gold); }
   .desktop-ui .sidebar .more-menu { color: var(--ink); }
   .desktop-ui .sidebar .sidebar-bottom { grid-template-columns: minmax(0, 1fr); }

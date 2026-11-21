@@ -2,11 +2,12 @@ const Post = require('../models/Post');
 const Business = require('../models/Business');
 const Follow = require('../models/Follow');
 const { visibleNowFilter } = require('../utils/postVisibility');
+const { currentCityOf } = require('../utils/location');
 
 // @desc    Return posts from businesses the logged-in consumer follows
 //          (newest first). No fallback to other posts yet -- an empty
-//          follow list means an empty feed, by product decision, until
-//          the future Explore page covers interest/city-based discovery.
+//          follow list means an empty feed, by product decision; Explore
+//          covers city-based discovery.
 // @route   GET /api/discover/posts
 const discoverPosts = async (req, res) => {
   try {
@@ -35,69 +36,80 @@ const discoverPosts = async (req, res) => {
   }
 };
 
-// @desc    Explore: posts from businesses relevant to the logged-in user's
-//          city or interests, regardless of follow status (newest first).
-//          This is the discovery surface discoverPosts defers to.
+const lowerInterests = (interests) => (interests || []).map((interest) => interest.toLowerCase());
+
+// @desc    Explore: posts from businesses in the account's current city,
+//          regardless of follow status. Businesses whose industry matches
+//          the account's interests rank first, then newest first.
 // @route   GET /api/discover/explore
 const discoverExplore = async (req, res) => {
   try {
     const account = req.role === 'business' ? req.business : req.user;
-    const interests = req.role === 'business' ? [account.industry].filter(Boolean) : account.interests;
-    const { city } = account;
+    const interests = lowerInterests(req.role === 'business' ? [account.industry].filter(Boolean) : account.interests);
+    const city = currentCityOf(account);
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
+    if (!city) return res.json([]);
 
-    const orClauses = [
-      ...(city ? [{ city }] : []),
-      ...(interests && interests.length > 0 ? [{ industry: { $in: interests } }] : []),
-    ];
-    if (orClauses.length === 0) return res.json([]);
-
-    const businessQuery = { $or: orClauses };
+    const businessQuery = { city };
     if (req.role === 'business') businessQuery._id = { $ne: account._id };
-    const relevantBusinesses = await Business.find(businessQuery).select('_id');
-    if (relevantBusinesses.length === 0) return res.json([]);
+    const localBusinesses = await Business.find(businessQuery).select('_id industry').lean();
+    if (localBusinesses.length === 0) return res.json([]);
+    const interestMatchIds = localBusinesses
+      .filter((business) => interests.includes((business.industry || '').toLowerCase()))
+      .map((business) => business._id);
 
     const visibility = req.role === 'business'
       ? { $in: ['consumers_and_businesses', 'businesses_only', null] }
       : { $in: ['consumers_and_businesses', null] };
-    const posts = await Post.find({
-      status: 'active',
-      visibility,
-      business: { $in: relevantBusinesses.map((business) => business._id) },
-      ...visibleNowFilter(),
-    })
-      .populate('business', 'businessName logoUrl industry')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
+    // Rank in the database so pagination stays consistent, then load full
+    // documents (aggregate drops the offerStatus virtual).
+    const ranked = await Post.aggregate([
+      {
+        $match: {
+          status: 'active',
+          visibility,
+          business: { $in: localBusinesses.map((business) => business._id) },
+          ...visibleNowFilter(),
+        },
+      },
+      { $addFields: { interestMatch: { $cond: [{ $in: ['$business', interestMatchIds] }, 1, 0] } } },
+      { $sort: { interestMatch: -1, createdAt: -1, _id: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+      { $project: { _id: 1 } },
+    ]);
+    const posts = await Post.find({ _id: { $in: ranked.map((post) => post._id) } })
+      .populate('business', 'businessName logoUrl industry');
+    const postsById = new Map(posts.map((post) => [post._id.toString(), post]));
 
-    res.json(posts);
+    res.json(ranked.map((post) => postsById.get(post._id.toString())).filter(Boolean));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Discover businesses relevant to the logged-in user, scoped to their city
+// @desc    Discover businesses in the user's current city, interest matches first
 // @route   GET /api/discover/businesses
 const discoverBusinesses = async (req, res) => {
   try {
-    const { interests, city } = req.user;
+    const interests = lowerInterests(req.user.interests);
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
 
-    const query = { city, ...(interests && interests.length > 0 ? { industry: { $in: interests } } : {}) };
-
-    const businesses = await Business.find(query)
-      .select('-password')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
+    const businesses = await Business.aggregate([
+      { $match: { city: currentCityOf(req.user) } },
+      { $addFields: { interestMatch: { $cond: [{ $in: [{ $toLower: { $ifNull: ['$industry', ''] } }, interests] }, 1, 0] } } },
+      { $sort: { interestMatch: -1, createdAt: -1, _id: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+      { $project: { password: 0, interestMatch: 0 } },
+    ]);
 
     const follows = await Follow.find({ user: req.user._id }).select('business');
     const followedIds = new Set(follows.map((follow) => follow.business.toString()));
     res.json(businesses.map((business) => ({
-      ...business.toObject(),
+      ...business,
       following: followedIds.has(business._id.toString()),
     })));
   } catch (error) {

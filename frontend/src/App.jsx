@@ -23,6 +23,7 @@ import CreatePostPage from './pages/create/CreatePostPage'
 import CollaborationsPage from './pages/collaborations/CollaborationsPage'
 import SavedPage from './pages/saved/SavedPage'
 import AboutPage from './pages/about/AboutPage'
+import SettingsPage from './pages/settings/SettingsPage'
 
 function ProtectedLayout({ session, onLogout }) {
   const location = useLocation()
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="create" element={session?.isBusiness ? <CreateRoute /> : home} />
           <Route path="collaborations" element={session?.isBusiness ? <CollaborationsPage /> : home} />
           <Route path="about" element={<AboutPage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route
             path="*"
             element={

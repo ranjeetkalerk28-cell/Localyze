@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAccount } from '../../account/AccountContext'
 import { API_URL, uploadImageFile } from '../../lib/api'
-import CitySelect from '../../components/CitySelect'
 import Avatar from '../../components/Avatar'
 import PostCard from '../../components/PostCard'
 import FollowButton from '../../components/FollowButton'
@@ -22,7 +21,7 @@ export default function MyProfilePage() {
   const [activeTab, setActiveTab] = useState('saved')
   const [collectionsVersion, setCollectionsVersion] = useState(0)
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ username: '', bio: '', interests: '', city: '' })
+  const [editForm, setEditForm] = useState({ username: '', bio: '', interests: '' })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -85,7 +84,6 @@ export default function MyProfilePage() {
       username: profile.username || '',
       bio: profile.bio || '',
       interests: (profile.interests || []).join(', '),
-      city: profile.city || '',
     })
     setSaveError('')
     setIsEditing(true)
@@ -126,7 +124,6 @@ export default function MyProfilePage() {
             .split(',')
             .map((interest) => interest.trim())
             .filter(Boolean),
-          city: editForm.city,
         }),
       })
       const data = await response.json()
@@ -207,13 +204,6 @@ export default function MyProfilePage() {
                   value={editForm.interests}
                   onChange={(event) => setEditForm({ ...editForm, interests: event.target.value })}
                   placeholder="food, design, music"
-                />
-              </label>
-              <label>
-                City *
-                <CitySelect
-                  value={editForm.city}
-                  onChange={(event) => setEditForm({ ...editForm, city: event.target.value })}
                 />
               </label>
               {saveError && <p className="auth-message">{saveError}</p>}
