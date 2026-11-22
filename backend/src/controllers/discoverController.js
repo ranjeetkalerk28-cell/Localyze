@@ -3,6 +3,8 @@ const Business = require('../models/Business');
 const Follow = require('../models/Follow');
 const { visibleNowFilter } = require('../utils/postVisibility');
 const { currentCityOf } = require('../utils/location');
+const { buildAffinity } = require('../utils/affinity');
+const RANKING = require('../constants/ranking');
 
 // @desc    Return posts from businesses the logged-in consumer follows
 //          (newest first). No fallback to other posts yet -- an empty
@@ -38,28 +40,78 @@ const discoverPosts = async (req, res) => {
 
 const lowerInterests = (interests) => (interests || []).map((interest) => interest.toLowerCase());
 
+const HOUR_MS = 60 * 60 * 1000;
+
+// Human-readable reasons for a ranked post, most personal first. They mirror
+// the score terms in constants/ranking.js, so what the card says is exactly
+// what moved the post up.
+const rankReasonsFor = (post, { isBusiness, interests, businessLikes, industrySignals, city }) => {
+  const reasons = [];
+  const businessId = (post.business?._id || post.business).toString();
+  const industry = post.business?.industry || '';
+  const industryKey = industry.toLowerCase();
+
+  if (industryKey && interests.includes(industryKey)) {
+    reasons.push(isBusiness ? 'In your industry' : 'Matches your interests');
+  }
+  if (businessLikes.has(businessId)) {
+    reasons.push('You liked posts from this business');
+  } else if (industryKey && industrySignals.has(industryKey)) {
+    reasons.push(`You often engage with ${industry}`);
+  }
+  const likeCount = (post.likes?.length || 0) + (post.businessLikes?.length || 0);
+  if (likeCount >= RANKING.POPULAR_MIN_LIKES) reasons.push(`Popular in ${city}`);
+  if (Date.now() - new Date(post.createdAt).getTime() < RANKING.NEW_MAX_AGE_HOURS * HOUR_MS) {
+    reasons.push('New today');
+  }
+  return reasons;
+};
+
 // @desc    Explore: posts from businesses in the account's current city,
-//          regardless of follow status. Businesses whose industry matches
-//          the account's interests rank first, then newest first.
+//          regardless of follow status, ranked by a transparent score:
+//          interest match + the consumer's recent likes/follows (Activity
+//          log) + popularity + freshness. See constants/ranking.js for the
+//          weights. Each post carries `rankReasons` explaining its position.
 // @route   GET /api/discover/explore
 const discoverExplore = async (req, res) => {
   try {
-    const account = req.role === 'business' ? req.business : req.user;
-    const interests = lowerInterests(req.role === 'business' ? [account.industry].filter(Boolean) : account.interests);
+    const isBusiness = req.role === 'business';
+    const account = isBusiness ? req.business : req.user;
+    const interests = lowerInterests(isBusiness ? [account.industry].filter(Boolean) : account.interests);
     const city = currentCityOf(account);
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     if (!city) return res.json([]);
 
     const businessQuery = { city };
-    if (req.role === 'business') businessQuery._id = { $ne: account._id };
+    if (isBusiness) businessQuery._id = { $ne: account._id };
     const localBusinesses = await Business.find(businessQuery).select('_id industry').lean();
     if (localBusinesses.length === 0) return res.json([]);
-    const interestMatchIds = localBusinesses
-      .filter((business) => interests.includes((business.industry || '').toLowerCase()))
-      .map((business) => business._id);
 
-    const visibility = req.role === 'business'
+    // Activity is a consumer-only log, so businesses rank on industry,
+    // popularity and freshness alone.
+    const { businessLikes, industrySignals } = isBusiness
+      ? { businessLikes: new Map(), industrySignals: new Map() }
+      : await buildAffinity(account._id);
+
+    // Per-business part of the score, computed here (small: one city's
+    // businesses) and handed to the pipeline as two parallel arrays.
+    const baseIds = [];
+    const baseScores = [];
+    for (const business of localBusinesses) {
+      const industry = (business.industry || '').toLowerCase();
+      const likes = Math.min(businessLikes.get(business._id.toString()) || 0, RANKING.BUSINESS_LIKE_CAP);
+      const signals = Math.min(industrySignals.get(industry) || 0, RANKING.INDUSTRY_SIGNAL_CAP);
+      const base = (interests.includes(industry) ? RANKING.INTEREST : 0)
+        + likes * RANKING.BUSINESS_LIKE
+        + signals * RANKING.INDUSTRY_SIGNAL;
+      if (base > 0) {
+        baseIds.push(business._id);
+        baseScores.push(base);
+      }
+    }
+
+    const visibility = isBusiness
       ? { $in: ['consumers_and_businesses', 'businesses_only', null] }
       : { $in: ['consumers_and_businesses', null] };
     // Rank in the database so pagination stays consistent, then load full
@@ -73,8 +125,30 @@ const discoverExplore = async (req, res) => {
           ...visibleNowFilter(),
         },
       },
-      { $addFields: { interestMatch: { $cond: [{ $in: ['$business', interestMatchIds] }, 1, 0] } } },
-      { $sort: { interestMatch: -1, createdAt: -1, _id: -1 } },
+      {
+        $addFields: {
+          baseIndex: { $indexOfArray: [baseIds, '$business'] },
+          likeCount: { $add: [{ $size: { $ifNull: ['$likes', []] } }, { $size: { $ifNull: ['$businessLikes', []] } }] },
+          ageHours: { $max: [0, { $divide: [{ $subtract: ['$$NOW', '$createdAt'] }, HOUR_MS] }] },
+        },
+      },
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $cond: [{ $gte: ['$baseIndex', 0] }, { $arrayElemAt: [baseScores, '$baseIndex'] }, 0] },
+              { $multiply: [RANKING.POPULARITY, { $log10: { $add: [1, '$likeCount'] } }] },
+              {
+                $divide: [
+                  RANKING.FRESHNESS,
+                  { $add: [1, { $divide: ['$ageHours', RANKING.FRESHNESS_HALF_LIFE_HOURS] }] },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      { $sort: { score: -1, createdAt: -1, _id: -1 } },
       { $skip: (page - 1) * limit },
       { $limit: limit },
       { $project: { _id: 1 } },
@@ -82,8 +156,12 @@ const discoverExplore = async (req, res) => {
     const posts = await Post.find({ _id: { $in: ranked.map((post) => post._id) } })
       .populate('business', 'businessName logoUrl industry');
     const postsById = new Map(posts.map((post) => [post._id.toString(), post]));
+    const context = { isBusiness, interests, businessLikes, industrySignals, city };
 
-    res.json(ranked.map((post) => postsById.get(post._id.toString())).filter(Boolean));
+    res.json(ranked
+      .map((post) => postsById.get(post._id.toString()))
+      .filter(Boolean)
+      .map((post) => ({ ...post.toJSON(), rankReasons: rankReasonsFor(post, context) })));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

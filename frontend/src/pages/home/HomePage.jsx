@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, ChevronDown, MapPin, Sparkles } from 'lucide-react'
+import { ArrowRight, Sparkles } from 'lucide-react'
 import { useAccount } from '../../account/AccountContext'
 import { API_URL } from '../../lib/api'
 import PostCard from '../../components/PostCard'
-import LocationDialog, { currentCityOf } from '../../components/LocationDialog'
+import { currentCityOf } from '../../components/LocationDialog'
+import LocationChip from '../../components/LocationChip'
 import StoriesRow from './StoriesRow'
 import NetworkRail from './NetworkRail'
 import RecommendedConnections from './RecommendedConnections'
@@ -17,7 +18,6 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const [isChangingLocation, setIsChangingLocation] = useState(false)
   const currentCity = currentCityOf(profile)
 
   useEffect(() => {
@@ -100,19 +100,9 @@ export default function HomePage() {
         {profile && (
           <div className="bazaar-greeting">
             {greetName && <p>Namaste, {greetName}!</p>}
-            <button
-              className="location-chip"
-              aria-haspopup="dialog"
-              aria-label={`Current location: ${currentCity}. Change location`}
-              onClick={() => setIsChangingLocation(true)}
-            >
-              <MapPin size={14} aria-hidden="true" />
-              {currentCity}
-              <ChevronDown size={14} aria-hidden="true" />
-            </button>
+            <LocationChip />
           </div>
         )}
-        {isChangingLocation && <LocationDialog onClose={() => setIsChangingLocation(false)} />}
         {isBusiness ? (
           <NetworkRail>
             <RecommendedConnections token={token} city={currentCity} />

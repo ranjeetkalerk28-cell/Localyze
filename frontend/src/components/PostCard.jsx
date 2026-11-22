@@ -1,4 +1,4 @@
-import { Bookmark, Building2, Ellipsis, Heart, MessageCircle, X } from 'lucide-react'
+import { Bookmark, Building2, Ellipsis, Heart, MessageCircle, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useAccount } from '../account/AccountContext'
 import { API_URL } from '../lib/api'
@@ -270,6 +270,12 @@ export default function PostCard({ post, onOpenBusiness, onSaveChange, onLikeCha
         )}
       </div>
       <div className="post-copy">
+        {post.rankReasons?.length > 0 && (
+          <p className="rank-reason" title={post.rankReasons.join(' · ')}>
+            <Sparkles size={13} aria-hidden="true" />
+            {post.rankReasons[0]}
+          </p>
+        )}
         <div className="post-meta">
           <span className={`post-type post-type-${postType}`}>{postType}</span>
         </div>

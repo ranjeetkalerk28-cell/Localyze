@@ -292,3 +292,12 @@
   .desktop-ui .search-result-arrow { font-size: 15px; }
   .desktop-ui .search-city-field { width: 100%; margin: 6px 0 4px; }
 }
+
+/* Explore ranking reason ("why am I seeing this?") */
+.rank-reason { display: inline-flex; width: fit-content; max-width: 100%; align-items: center; gap: 5px; margin: 0 0 8px; padding: 3px 10px; border-radius: 4px 12px 4px 12px; background: var(--gold-tint); color: var(--gold-ink); font-family: var(--body); font-size: 11px; font-weight: 600; line-height: 1.4; }
+.rank-reason svg { flex: none; }
+
+/* Explore header: title left, location chip top-right (mirrors Home's rail). */
+.explore-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.explore-header > div { min-width: 0; }
+.explore-header .location-chip { flex: none; margin-top: 2px; }

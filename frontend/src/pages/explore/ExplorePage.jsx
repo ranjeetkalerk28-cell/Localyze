@@ -4,6 +4,7 @@ import { useAccount } from '../../account/AccountContext'
 import { API_URL } from '../../lib/api'
 import PostCard from '../../components/PostCard'
 import { currentCityOf } from '../../components/LocationDialog'
+import LocationChip from '../../components/LocationChip'
 
 export default function ExplorePage() {
   const { token, isBusiness, profile } = useAccount()
@@ -36,16 +37,22 @@ export default function ExplorePage() {
     return () => {
       loadRequestId.current += 1
     }
-  }, [token])
+    // Reload when the location chip switches the current city.
+  }, [token, city])
 
   return (
     <section className="post-flow explore-page">
-      <p className="eyebrow">Localyze / Explore</p>
-      <h1>Discover what’s near you.</h1>
+      <div className="explore-header">
+        <div>
+          <p className="eyebrow">Localyze / Explore</p>
+          <h1>Discover what’s near you.</h1>
+        </div>
+        {profile && <LocationChip />}
+      </div>
       <p className="dashboard-intro">
         {isBusiness
           ? `Posts from other businesses in ${city || 'your city'}, with your industry first.`
-          : `Posts from businesses in ${city || 'your city'}, with your interests first — whether you follow them yet or not.`}
+          : `Posts from businesses in ${city || 'your city'}, ranked by your interests and what you’ve liked and followed lately — whether you follow them yet or not.`}
       </p>
       {isLoading ? (
         <div className="loading-state">Finding posts near you...</div>
