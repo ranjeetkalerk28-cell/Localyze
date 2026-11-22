@@ -5,11 +5,13 @@ import Countdown from '../../components/Countdown'
 import PostCard from '../../components/PostCard'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import EditPostDialog from './EditPostDialog'
+import BusinessEvents from './BusinessEvents'
 
 const profileTabs = [
   { key: 'collaboration', label: 'Collaborations' },
   { key: 'promotion', label: 'Promotions' },
   { key: 'offer', label: 'Offers' },
+  { key: 'event', label: 'Events' },
 ]
 
 export default function BusinessPosts({ token, businessId, isOwnProfile, activeTab, setActiveTab }) {
@@ -29,6 +31,7 @@ export default function BusinessPosts({ token, businessId, isOwnProfile, activeT
   }, [selectedPost])
 
   useEffect(() => {
+    if (activeTab === 'event') return // events load in <BusinessEvents>, not as posts
     const controller = new AbortController()
     setIsLoadingPosts(true)
     fetch(`${API_URL}/businesses/${businessId}/posts?postType=${activeTab}`, {
@@ -89,7 +92,9 @@ export default function BusinessPosts({ token, businessId, isOwnProfile, activeT
             </button>
           ))}
         </div>
-        {isLoadingPosts ? (
+        {activeTab === 'event' ? (
+          <BusinessEvents token={token} businessId={businessId} />
+        ) : isLoadingPosts ? (
           <div className="loading-state">Loading posts...</div>
         ) : posts.length ? (
           <div className="profile-post-grid">

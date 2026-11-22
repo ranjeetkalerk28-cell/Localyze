@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } fr
 import {
   Bell,
   Bookmark,
+  CalendarDays,
   Compass,
   Ellipsis,
   Handshake,
@@ -30,6 +31,7 @@ function Navigation() {
     { label: 'Home', path: '/', icon: Home },
     { label: 'Search', path: '/search', icon: Search },
     { label: 'Explore', path: '/explore', icon: Compass },
+    { label: 'Events', path: '/events', icon: CalendarDays },
     { label: 'Notifications', path: '/notifications', icon: isBusiness ? Bell : Heart, secondary: true },
     ...(isBusiness
       ? [

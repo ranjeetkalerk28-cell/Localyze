@@ -12,6 +12,9 @@ const businessSchema = new mongoose.Schema(
     industry: { type: String, default: '' },
     description: { type: String, default: '' },
     logoUrl: { type: String, default: '' },
+    address: { type: String, default: '', trim: true, maxlength: 100 }, // short: shop no, street, area, city
+    mapsUrl: { type: String, default: '', trim: true }, // Google Maps link, validated in the controller
+    phone: { type: String, default: '', trim: true }, // contact number, normalised + validated in the controller (constants/phone.js)
     city: { type: String, required: true, enum: CITIES, index: true }, // default location, edited in Settings
     currentCity: { type: String, enum: CITIES }, // quick-switch location; drives discovery when set
   },

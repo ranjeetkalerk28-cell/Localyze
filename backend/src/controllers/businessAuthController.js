@@ -2,6 +2,8 @@ const Business = require('../models/Business');
 const generateToken = require('../utils/generateToken');
 const CITIES = require('../constants/cities');
 const { isValidUsername } = require('../constants/username');
+const { isValidMapsUrl } = require('../constants/mapsUrl');
+const { normalizePhone, isValidPhone } = require('../constants/phone');
 
 // @desc    Register a new business
 // @route   POST /api/business/auth/register
@@ -86,7 +88,24 @@ const updateMyProfile = async (req, res) => {
       req.body.username = username;
     }
 
-    const allowedFields = ['businessName', 'username', 'industry', 'description', 'logoUrl', 'city'];
+    if (req.body.address !== undefined && String(req.body.address).trim().length > 100) {
+      return res.status(400).json({ message: 'Address must be 100 characters or fewer' });
+    }
+    if (req.body.mapsUrl !== undefined) {
+      req.body.mapsUrl = String(req.body.mapsUrl).trim();
+      if (req.body.mapsUrl && !isValidMapsUrl(req.body.mapsUrl)) {
+        return res.status(400).json({ message: 'Please paste a Google Maps link' });
+      }
+    }
+
+    if (req.body.phone !== undefined) {
+      req.body.phone = normalizePhone(req.body.phone);
+      if (req.body.phone && !isValidPhone(req.body.phone)) {
+        return res.status(400).json({ message: 'Enter a valid phone number (10-13 digits, optional + prefix)' });
+      }
+    }
+
+    const allowedFields = ['businessName', 'username', 'industry', 'description', 'logoUrl', 'city', 'address', 'mapsUrl', 'phone'];
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) req.business[field] = req.body[field];
     });

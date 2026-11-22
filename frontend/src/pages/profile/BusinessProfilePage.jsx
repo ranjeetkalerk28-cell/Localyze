@@ -1,5 +1,5 @@
 import BusinessPosts from './BusinessPosts'
-import { ArrowLeft, Building2 } from 'lucide-react'
+import { ArrowLeft, Building2, MapPin } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router'
 import { useAccount } from '../../account/AccountContext'
@@ -9,6 +9,7 @@ import FollowButton from '../../components/FollowButton'
 import ConnectButton from '../../components/ConnectButton'
 import BusinessLink from '../../components/BusinessLink'
 import EditProfileDialog from '../../components/EditProfileDialog'
+import ContactButton from '../../components/ContactButton'
 
 export default function BusinessProfilePage({ businessId }) {
   const { token, userId: viewerId, isBusiness: viewerIsBusiness, setProfile } = useAccount()
@@ -18,7 +19,7 @@ export default function BusinessProfilePage({ businessId }) {
   const [isLoading, setIsLoading] = useState(true)
   const [params, setParams] = useSearchParams()
   const viewMode = ['followers', 'connections'].includes(params.get('view')) ? params.get('view') : 'posts'
-  const activeTab = ['promotion', 'offer'].includes(params.get('tab')) ? params.get('tab') : 'collaboration'
+  const activeTab = ['promotion', 'offer', 'event'].includes(params.get('tab')) ? params.get('tab') : 'collaboration'
 
   function setProfileView(key, value) {
     const next = new URLSearchParams(params)
@@ -155,6 +156,24 @@ export default function BusinessProfilePage({ businessId }) {
                 {business.industry || 'Local business'}
                 {business.city ? ` · ${business.city}` : ''}
               </span>
+              {(business.address || business.mapsUrl) &&
+                (business.mapsUrl ? (
+                  <a
+                    className="profile-address"
+                    href={business.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <MapPin size={12} aria-hidden="true" />
+                    {business.address || business.city}
+                  </a>
+                ) : (
+                  <span className="profile-address">
+                    <MapPin size={12} aria-hidden="true" />
+                    {business.address}
+                  </span>
+                ))}
+              <ContactButton name={business.businessName} email={business.email} phone={business.phone} />
             </div>
             {isOwnProfile ? (
               <button className="primary-button" onClick={() => setIsEditing(true)}>

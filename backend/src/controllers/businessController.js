@@ -38,7 +38,7 @@ const searchBusinesses = async (req, res) => {
 const getBusinessById = async (req, res) => {
   try {
     const { id } = req.params;
-    const business = await Business.findById(id).select('businessName username industry description logoUrl city createdAt');
+    const business = await Business.findById(id).select('businessName username industry description logoUrl city address mapsUrl email phone createdAt');
     if (!business) return res.status(404).json({ message: 'Business not found' });
 
     const acceptedEitherDirection = { status: 'accepted', $or: [{ requester: id }, { recipient: id }] };

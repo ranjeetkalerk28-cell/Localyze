@@ -11,6 +11,9 @@ function initialForm(profile, isBusiness) {
         username: profile?.username || '',
         industry: profile?.industry || '',
         description: profile?.description || '',
+        address: profile?.address || '',
+        mapsUrl: profile?.mapsUrl || '',
+        phone: profile?.phone || '',
         logoUrl: profile?.logoUrl || '',
       }
     : {
@@ -125,6 +128,28 @@ export default function EditProfileDialog({ onClose, onSaved }) {
             <label>
               Description
               <textarea {...field('description')} placeholder="Tell people what makes you different..." />
+            </label>
+            <label>
+              Address <span>(optional)</span>
+              <input
+                {...field('address')}
+                maxLength="100"
+                placeholder="Shop 12, 4th Cross, Indiranagar, Bengaluru"
+              />
+            </label>
+            <label>
+              Google Maps link <span>(optional)</span>
+              <input
+                {...field('mapsUrl')}
+                type="url"
+                placeholder="https://maps.app.goo.gl/..."
+              />
+              <small>Open your shop in Google Maps → Share → Copy link</small>
+            </label>
+            <label>
+              Phone number <span>(optional)</span>
+              <input {...field('phone')} type="tel" maxLength="20" placeholder="+91 98765 43210" />
+              <small>Shown with your email when someone taps Contact on your profile</small>
             </label>
           </>
         ) : (

@@ -121,6 +121,8 @@ h1 { margin: 0; }
 .profile-card { align-items: center; display: flex; gap: 10px; margin-bottom: 38px; }
 .profile-card div:nth-child(2), .suggestion div:nth-child(2) { display: grid; gap: 4px; }
 .profile-handle { color: var(--blue); font-family: var(--body); font-size: 10px; }
+.profile-card .profile-address { align-items: center; display: inline-flex; gap: 4px; overflow-wrap: anywhere; }
+.profile-card a.profile-address { color: var(--blue); font-family: var(--body); font-size: 12px; text-decoration: underline; }
 .profile-card button { margin-left: auto; }
 .suggestion-header { display: flex; font-family: var(--body); justify-content: space-between; margin-bottom: 18px; }
 .suggestion-header button { color: var(--ink); }

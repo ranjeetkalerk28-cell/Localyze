@@ -33,6 +33,64 @@ describe('current location', () => {
   });
 });
 
+describe('business address and maps link', () => {
+  const save = (token, body) =>
+    request(app).put('/api/business/auth/me').set('Authorization', `Bearer ${token}`).send(body);
+
+  test('saves, publicly returns and clears address and mapsUrl', async () => {
+    const { token, business } = await createBusiness();
+    const body = { address: 'Shop 12, 4th Cross, Indiranagar, Bengaluru', mapsUrl: 'https://maps.app.goo.gl/abc123' };
+
+    expect((await save(token, body)).status).toBe(200);
+    const profile = await request(app).get(`/api/businesses/${business._id}`).set("Authorization", `Bearer ${token}`);
+    expect(profile.body).toMatchObject(body);
+
+    expect((await save(token, { address: '', mapsUrl: '' })).status).toBe(200);
+    const cleared = await Business.findById(business._id);
+    expect(cleared.address).toBe('');
+    expect(cleared.mapsUrl).toBe('');
+  });
+
+  test('accepts the common Google Maps link formats', async () => {
+    const { token } = await createBusiness();
+    for (const mapsUrl of [
+      'https://www.google.com/maps/place/Common+Ground',
+      'https://google.com/maps?q=12.97,77.59',
+      'https://maps.google.com/?q=shop',
+      'https://goo.gl/maps/xyz',
+    ]) {
+      expect((await save(token, { mapsUrl })).status).toBe(200);
+    }
+  });
+
+  test('rejects links that are not Google Maps', async () => {
+    const { token } = await createBusiness();
+    for (const mapsUrl of [
+      'javascript:alert(1)',
+      'https://evil.com',
+      'http://maps.app.goo.gl/abc',
+      'https://google.com.evil.com/maps',
+      'https://www.google.com/search?q=maps',
+      'https://user:pw@www.google.com/maps',
+    ]) {
+      expect((await save(token, { mapsUrl })).status).toBe(400);
+    }
+  });
+
+  test('rejects an address over 100 characters', async () => {
+    const { token } = await createBusiness();
+    expect((await save(token, { address: 'a'.repeat(101) })).status).toBe(400);
+  });
+
+  test('a business with neither field still works', async () => {
+    const { business, token } = await createBusiness();
+    const profile = await request(app).get(`/api/businesses/${business._id}`).set("Authorization", `Bearer ${token}`);
+    expect(profile.status).toBe(200);
+    expect(profile.body.address || '').toBe('');
+    expect(profile.body.mapsUrl || '').toBe('');
+  });
+});
+
 describe('change password', () => {
   test('requires the current password and then accepts the new one at login', async () => {
     const { token, user } = await createUser({ password: 'oldpass1' });
@@ -89,5 +147,46 @@ describe('delete account', () => {
     expect(await Business.findById(business._id)).toBeNull();
     expect(await Post.countDocuments({ business: business._id })).toBe(0);
     expect(await Follow.countDocuments({ business: business._id })).toBe(0);
+  });
+});
+
+describe('business contact info', () => {
+  const save = (token, body) =>
+    request(app).put('/api/business/auth/me').set('Authorization', `Bearer ${token}`).send(body);
+  const publicProfile = (viewerToken, id) =>
+    request(app).get(`/api/businesses/${id}`).set('Authorization', `Bearer ${viewerToken}`);
+
+  test("a consumer sees a business's registered email and saved phone", async () => {
+    const { token, business } = await createBusiness({ email: 'hello@shop.example' });
+    const { token: consumerToken } = await createUser();
+
+    expect((await save(token, { phone: '+91 98765-43210' })).status).toBe(200);
+    const profile = await publicProfile(consumerToken, business._id);
+    expect(profile.status).toBe(200);
+    expect(profile.body.email).toBe('hello@shop.example');
+    expect(profile.body.phone).toBe('+919876543210');
+    expect(profile.body.password).toBeUndefined();
+  });
+
+  test('normalises spaces, dashes and brackets before saving', async () => {
+    const { token, business } = await createBusiness();
+    await save(token, { phone: '(022) 2345 6789' });
+    expect((await Business.findById(business._id)).phone).toBe('02223456789');
+  });
+
+  test('rejects numbers that are too short, too long or not numeric', async () => {
+    const { token } = await createBusiness();
+    for (const phone of ['12345', '12345678901234', 'call me', '98765x43210', '++919876543210']) {
+      expect((await save(token, { phone })).status).toBe(400);
+    }
+  });
+
+  test('clears the phone, and the email stays available without one', async () => {
+    const { token, business } = await createBusiness();
+    await save(token, { phone: '9876543210' });
+    expect((await save(token, { phone: '' })).status).toBe(200);
+    const profile = await publicProfile(token, business._id);
+    expect(profile.body.phone || '').toBe('');
+    expect(profile.body.email).toBe(business.email);
   });
 });

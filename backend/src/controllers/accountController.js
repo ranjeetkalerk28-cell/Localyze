@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Business = require('../models/Business');
 const Post = require('../models/Post');
+const Event = require('../models/Event');
 const Follow = require('../models/Follow');
 const SavedPost = require('../models/SavedPost');
 const Notification = require('../models/Notification');
@@ -64,6 +65,7 @@ const deleteUserData = async (userId) => {
 const deleteBusinessData = async (businessId) => {
   const posts = await Post.find({ business: businessId }).select('_id imagePublicId').lean();
   const postIds = posts.map((post) => post._id);
+  const events = await Event.find({ business: businessId }).select('_id imagePublicId').lean();
   await Promise.all([
     Comment.deleteMany({ $or: [{ post: { $in: postIds } }, { business: businessId }] }),
     SavedPost.deleteMany({ post: { $in: postIds } }),
@@ -74,12 +76,13 @@ const deleteBusinessData = async (businessId) => {
     Collaboration.deleteMany({ $or: [{ requester: businessId }, { recipient: businessId }] }),
     Post.updateMany({ businessLikes: businessId }, { $pull: { businessLikes: businessId } }),
     Post.deleteMany({ business: businessId }),
+    Event.deleteMany({ business: businessId }),
   ]);
-  await Promise.all(posts.filter((post) => post.imagePublicId).map(async (post) => {
+  await Promise.all([...posts, ...events].filter((item) => item.imagePublicId).map(async (item) => {
     try {
-      await cloudinary.uploader.destroy(post.imagePublicId);
+      await cloudinary.uploader.destroy(item.imagePublicId);
     } catch (cloudinaryError) {
-      console.error('Failed to delete Cloudinary asset for post', post._id, cloudinaryError.message);
+      console.error('Failed to delete Cloudinary asset for', item._id, cloudinaryError.message);
     }
   }));
 };

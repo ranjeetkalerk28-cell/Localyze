@@ -24,6 +24,8 @@ import CollaborationsPage from './pages/collaborations/CollaborationsPage'
 import SavedPage from './pages/saved/SavedPage'
 import AboutPage from './pages/about/AboutPage'
 import SettingsPage from './pages/settings/SettingsPage'
+import EventsPage from './pages/events/EventsPage'
+import EventFormPage from './pages/events/EventFormPage'
 
 function ProtectedLayout({ session, onLogout }) {
   const location = useLocation()
@@ -84,6 +86,9 @@ export default function App() {
           <Route index element={<HomePage />} />
           <Route path="search" element={<SearchPage />} />
           <Route path="explore" element={<ExplorePage />} />
+          <Route path="events" element={<EventsPage />} />
+          <Route path="events/new" element={session?.isBusiness ? <EventFormPage /> : home} />
+          <Route path="events/:eventId/edit" element={session?.isBusiness ? <EventFormPage /> : home} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="profile" element={<MyProfileRoute />} />
           <Route path="businesses/:businessId" element={<BusinessProfileRoute />} />
