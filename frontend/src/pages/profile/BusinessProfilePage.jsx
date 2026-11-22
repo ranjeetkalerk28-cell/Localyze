@@ -8,6 +8,7 @@ import Avatar from '../../components/Avatar'
 import FollowButton from '../../components/FollowButton'
 import ConnectButton from '../../components/ConnectButton'
 import BusinessLink from '../../components/BusinessLink'
+import EditProfileDialog from '../../components/EditProfileDialog'
 
 export default function BusinessProfilePage({ businessId }) {
   const { token, userId: viewerId, isBusiness: viewerIsBusiness, setProfile } = useAccount()
@@ -34,15 +35,7 @@ export default function BusinessProfilePage({ businessId }) {
   const [collabMessage, setCollabMessage] = useState('')
   const [collabStatus, setCollabStatus] = useState('idle')
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({
-    businessName: '',
-    username: '',
-    industry: '',
-    description: '',
-  })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
   const isOwnProfile = viewerIsBusiness && viewerId === businessId
 
   useEffect(() => {
@@ -98,17 +91,6 @@ export default function BusinessProfilePage({ businessId }) {
     }
   }
 
-  function startEditing() {
-    setEditForm({
-      businessName: business.businessName || '',
-      username: business.username || '',
-      industry: business.industry || '',
-      description: business.description || '',
-    })
-    setSaveError('')
-    setIsEditing(true)
-  }
-
   async function handlePhotoUpload(event) {
     const file = event.target.files[0]
     if (!file) return
@@ -129,28 +111,6 @@ export default function BusinessProfilePage({ businessId }) {
       // Leave the existing logo in place if the upload fails.
     } finally {
       setIsUploadingPhoto(false)
-    }
-  }
-
-  async function saveProfile(event) {
-    event.preventDefault()
-    setIsSaving(true)
-    setSaveError('')
-    try {
-      const response = await fetch(`${API_URL}/business/auth/me`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(editForm),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || 'Unable to save profile')
-      setBusiness((previous) => ({ ...previous, ...data }))
-      setProfile((previous) => ({ ...previous, ...data }))
-      setIsEditing(false)
-    } catch (saveCatchError) {
-      setSaveError(saveCatchError.message)
-    } finally {
-      setIsSaving(false)
     }
   }
 
@@ -197,11 +157,9 @@ export default function BusinessProfilePage({ businessId }) {
               </span>
             </div>
             {isOwnProfile ? (
-              !isEditing && (
-                <button className="primary-button" onClick={startEditing}>
-                  Edit Profile
-                </button>
-              )
+              <button className="primary-button" onClick={() => setIsEditing(true)}>
+                Edit Profile
+              </button>
             ) : viewerIsBusiness ? (
               <ConnectButton
                 token={token}
@@ -230,52 +188,10 @@ export default function BusinessProfilePage({ businessId }) {
             )}
           </div>
           {isEditing && (
-            <form className="post-form profile-section" onSubmit={saveProfile}>
-              <label>
-                Business name *
-                <input
-                  value={editForm.businessName}
-                  onChange={(event) => setEditForm({ ...editForm, businessName: event.target.value })}
-                  required
-                />
-              </label>
-              <label>
-                Username *
-                <input
-                  value={editForm.username}
-                  onChange={(event) => setEditForm({ ...editForm, username: event.target.value })}
-                  required
-                  minLength="3"
-                  maxLength="30"
-                  pattern="[a-z0-9_.]+"
-                  placeholder="commonground"
-                />
-              </label>
-              <label>
-                Industry
-                <input
-                  value={editForm.industry}
-                  onChange={(event) => setEditForm({ ...editForm, industry: event.target.value })}
-                />
-              </label>
-              <label>
-                Description
-                <textarea
-                  value={editForm.description}
-                  onChange={(event) => setEditForm({ ...editForm, description: event.target.value })}
-                  placeholder="Tell people what makes you different..."
-                />
-              </label>
-              {saveError && <p className="auth-message">{saveError}</p>}
-              <div className="edit-profile-actions">
-                <button type="button" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary-button" disabled={isSaving}>
-                  {isSaving ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </form>
+            <EditProfileDialog
+              onClose={() => setIsEditing(false)}
+              onSaved={(data) => setBusiness((previous) => ({ ...previous, ...data }))}
+            />
           )}
           <div className="profile-stats">
             <button onClick={() => setProfileView('view', 'followers')}>

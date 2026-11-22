@@ -7,6 +7,7 @@ import Avatar from '../../components/Avatar'
 import PostCard from '../../components/PostCard'
 import FollowButton from '../../components/FollowButton'
 import BusinessLink from '../../components/BusinessLink'
+import EditProfileDialog from '../../components/EditProfileDialog'
 
 export default function MyProfilePage() {
   const { token, profile, setProfile, profileLoading: isLoading } = useAccount()
@@ -21,10 +22,7 @@ export default function MyProfilePage() {
   const [activeTab, setActiveTab] = useState('saved')
   const [collectionsVersion, setCollectionsVersion] = useState(0)
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ username: '', bio: '', interests: '' })
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
 
   function handleProfileSaveChange(postId, isSaved, post) {
     setSavedPosts((previous) => {
@@ -79,16 +77,6 @@ export default function MyProfilePage() {
     }
   }, [token, collectionsVersion])
 
-  function startEditing() {
-    setEditForm({
-      username: profile.username || '',
-      bio: profile.bio || '',
-      interests: (profile.interests || []).join(', '),
-    })
-    setSaveError('')
-    setIsEditing(true)
-  }
-
   async function handlePhotoUpload(event) {
     const file = event.target.files[0]
     if (!file) return
@@ -106,34 +94,6 @@ export default function MyProfilePage() {
       // Leave the existing photo in place if the upload fails.
     } finally {
       setIsUploadingPhoto(false)
-    }
-  }
-
-  async function saveProfile(event) {
-    event.preventDefault()
-    setIsSaving(true)
-    setSaveError('')
-    try {
-      const response = await fetch(`${API_URL}/user/auth/me`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          username: editForm.username,
-          bio: editForm.bio,
-          interests: editForm.interests
-            .split(',')
-            .map((interest) => interest.trim())
-            .filter(Boolean),
-        }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || 'Unable to save profile')
-      setProfile(data)
-      setIsEditing(false)
-    } catch (saveCatchError) {
-      setSaveError(saveCatchError.message)
-    } finally {
-      setIsSaving(false)
     }
   }
 
@@ -170,64 +130,21 @@ export default function MyProfilePage() {
               {profile.username && <span className="profile-handle">@{profile.username}</span>}
               <span>{profile.city || 'Local community'}</span>
             </div>
-            {!isEditing && (
-              <button className="primary-button" onClick={startEditing}>
-                Edit Profile
-              </button>
+            <button className="primary-button" onClick={() => setIsEditing(true)}>
+              Edit Profile
+            </button>
+          </div>
+          {isEditing && <EditProfileDialog onClose={() => setIsEditing(false)} />}
+          <div className="profile-section consumer-profile-bio">
+            <p>{profile.bio || 'Add a little about yourself so local businesses can get to know you.'}</p>
+            {(profile.interests || []).length > 0 && (
+              <div className="tag-row">
+                {profile.interests.map((interest) => (
+                  <span key={interest}>#{interest}</span>
+                ))}
+              </div>
             )}
           </div>
-          {isEditing ? (
-            <form className="post-form profile-section" onSubmit={saveProfile}>
-              <label>
-                Username *
-                <input
-                  value={editForm.username}
-                  onChange={(event) => setEditForm({ ...editForm, username: event.target.value })}
-                  required
-                  minLength="3"
-                  maxLength="30"
-                  pattern="[a-z0-9_.]+"
-                  placeholder="averymorgan"
-                />
-              </label>
-              <label>
-                Bio
-                <textarea
-                  value={editForm.bio}
-                  onChange={(event) => setEditForm({ ...editForm, bio: event.target.value })}
-                  placeholder="Tell people about yourself..."
-                />
-              </label>
-              <label>
-                Interests <span>(comma separated)</span>
-                <input
-                  value={editForm.interests}
-                  onChange={(event) => setEditForm({ ...editForm, interests: event.target.value })}
-                  placeholder="food, design, music"
-                />
-              </label>
-              {saveError && <p className="auth-message">{saveError}</p>}
-              <div className="edit-profile-actions">
-                <button type="button" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary-button" disabled={isSaving}>
-                  {isSaving ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="profile-section consumer-profile-bio">
-              <p>{profile.bio || 'Add a little about yourself so local businesses can get to know you.'}</p>
-              {(profile.interests || []).length > 0 && (
-                <div className="tag-row">
-                  {profile.interests.map((interest) => (
-                    <span key={interest}>#{interest}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
           <div className="profile-stats">
             <button onClick={() => setViewMode('following')}>
               <strong>{following.length}</strong>

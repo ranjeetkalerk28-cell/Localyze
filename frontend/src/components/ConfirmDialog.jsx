@@ -1,18 +1,7 @@
 import { X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
-export default function ConfirmDialog({
-  open,
-  title,
-  children,
-  onCancel,
-  onConfirm,
-  busy,
-  error,
-  eyebrow = 'Manage your post',
-  confirmLabel = 'Delete post',
-  busyLabel = 'Deleting…',
-}) {
+export default function ConfirmDialog({ open, title, children, onCancel, onConfirm, busy, error }) {
   const ref = useRef(null)
   useEffect(() => {
     if (open && !ref.current.open) ref.current.showModal()
@@ -36,7 +25,7 @@ export default function ConfirmDialog({
       >
         <X size={20} />
       </button>
-      <p className="eyebrow">{eyebrow}</p>
+      <p className="eyebrow">Manage your post</p>
       <h2 id="confirm-title">{title}</h2>
       <p>{children}</p>
       {error && (
@@ -49,7 +38,7 @@ export default function ConfirmDialog({
           Cancel
         </button>
         <button className="primary-button" onClick={onConfirm} disabled={busy}>
-          {busy ? busyLabel : confirmLabel}
+          {busy ? 'Deleting…' : 'Delete post'}
         </button>
       </div>
     </dialog>

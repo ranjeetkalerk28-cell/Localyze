@@ -56,12 +56,22 @@
 .location-chip:hover { background: #fad3e3; }
 .location-chip:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
 
-.location-dialog { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 20px; width: min(400px, 92vw); padding: 0; }
-.location-dialog::backdrop { background: rgba(58, 16, 32, .45); }
-.location-dialog:not([open]) { display: none; }
-.location-dialog-body { position: relative; padding: 26px 24px 22px; }
-.location-dialog h2 { margin: 0 40px 4px 0; font: 400 23px/1.2 var(--display); }
-.location-dialog-intro { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.app-dialog {
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 20px;
+  width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 0; overflow-y: auto;
+}
+.app-dialog.edit-profile-dialog { width: min(480px, calc(100vw - 32px)); }
+.app-dialog::backdrop { background: rgba(58, 16, 32, .45); }
+.app-dialog:not([open]) { display: none; }
+.app-dialog-body { position: relative; padding: 26px 24px 22px; }
+.app-dialog h2 { margin: 0 40px 4px 0; font: 400 23px/1.2 var(--display); color: var(--ink); }
+.app-dialog .eyebrow { margin: 0 0 6px; }
+.app-dialog-intro { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.app-dialog .edit-profile-actions { margin-top: 16px; }
+.app-dialog-form.post-form { margin-top: 16px; gap: 16px; max-width: none; }
+.app-dialog-form .app-dialog-intro, .app-dialog-form .edit-profile-actions, .app-dialog-form .auth-message { margin: 0; }
+.app-dialog-form .dialog-photo { justify-self: start; }
+.danger-dialog h2 { color: var(--danger); }
 .location-search {
   display: flex; align-items: center; gap: 8px; padding: 0 12px; margin-bottom: 10px;
   background: var(--sunk); border: 1px solid var(--line-strong); border-radius: 12px; color: var(--muted);
@@ -77,7 +87,6 @@
 .location-list button:hover, .location-list button.selected { background: var(--coral-tint); }
 .location-list button.selected { color: var(--coral-deep); font-weight: 600; }
 .location-empty { color: var(--muted); font-size: 13px; padding: 10px 14px; margin: 0; }
-.location-dialog .edit-profile-actions { margin-top: 16px; }
 
 /* ---- Offer circles and paper tags ---- */
 .desktop-ui .story-ring { border: 0; padding: 5px; background: conic-gradient(#e2185b, #f6a313, #0f8b8d, #e2185b); }
